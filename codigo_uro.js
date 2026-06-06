@@ -1,3 +1,4 @@
+// Version 06/06/2026 hijos pintados de rojo, todos absolutamente todos.
 let datosGlobales = {};          
 let seriesSeleccionadas = [];    
 let coloresAsignados = {};       
@@ -12,6 +13,9 @@ let cicloDilatacionSeleccionadoActivo = null;
 
 // Persistencia del perfil de lectura solicitado: 'coloquial' o 'medica'
 let perfilExplicacionActivo = 'coloquial'; 
+
+const PALETA_MADRES_MX = ['#162B35', '#78350F', '#BA1F1F', '#F27D4B', '#008736', '#0066FF', '#7C3AED'];
+const PALETA_MADRES_AD = ['#00BCFF', '#32A584', '#EBD400', '#34C300', '#000087', '#87005A', '#686868'];
 
 const PALETA_COLORES = ['#3498db', '#e67e22', '#9b59b6', '#2ecc71', '#1abc9c', '#34495e', '#f1c40f'];
 
@@ -71,7 +75,8 @@ const FONDOS_PASTEL_RESISTENCIAS = [
 
 async function cargarDatosUro() {
     try {
-        const respuesta = await fetch('caudal_parser.php');
+        const respuesta = await fetch('caudal_parser.php', { cache: 'no-store' });
+        if (!respuesta.ok) throw new Error(`Error en servidor PHP: ${respuesta.status}`);
         datosGlobales = await respuesta.json();
         
         if (datosGlobales.error) {
@@ -92,7 +97,7 @@ async function cargarDatosUro() {
             inicializarRangoDefaultDrawer();
         }
         
-        // 4. Simulamos el clic en "Historial" para rellenar los rangos visuales
+         // 4. Simulamos el clic en "Historial" para rellenar los rangos visuales
         const btnHistorialDefault = document.querySelector('.btn-tiempo-rapido[data-dias="365"]');
         if (btnHistorialDefault) {
             btnHistorialDefault.click();
@@ -101,54 +106,58 @@ async function cargarDatosUro() {
         // 5. Renderizamos la lista de micciones. Esto disparará la gráfica automática inicial
         renderizarListaMicciones();
         
-        // 6. Activamos los escuchadores globales de cierre de ventanas informativas
-        inicializarCierreEventos();
-        
-        // 7. Sincronizamos el filtro general de la pantalla con las fechas del historial
-        if (typeof ejecutarFiltradoDatosUro === 'function') {
-            ejecutarFiltradoDatosUro();
+        // =========================================================================
+        // CORRECCIÓN DE ARRANQUE: FORZAR SELECCIÓN SÓLIDA DE LA PRIMERA MADRE
+        // =========================================================================
+        const primerMadreFisica = document.querySelector('.lista-micciones-contenido .maestro-dia');
+        if (primerMadreFisica) {
+            // REGLA DE ORO: Vaciamos el arreglo masivo intruso generado por ejecutarFiltradoDatosUro
+            // Esto obliga a que los hijos NÁZCAN DESELECCIONADOS (Apagados)
+            seriesSeleccionadas = [];
+
+            // Le forzamos la clase activa para que nazca seleccionada
+            primerMadreFisica.classList.add('active');
+            
+            const colorBordePrimerMadre = primerMadreFisica.style.borderLeftColor || '#162B35';
+            primerMadreFisica.style.backgroundColor = colorBordePrimerMadre;
+            primerMadreFisica.style.color = '#ffffff';
+
+            const textoFechaMadre = primerMadreFisica.textContent.trim();
+            primerMadreFisica.setAttribute('data-graficar-promedio-fecha', textoFechaMadre);
+
+            // Desplegamos físicamente su acordeón de hijos
+            const subListaPrimerMadre = primerMadreFisica.nextElementSibling;
+            if (subListaPrimerMadre) {
+                subListaPrimerMadre.style.display = 'block';
+                
+                // Los hijos de esta primera madre se registran en las series para que la gráfica los dibuje presentes
+                subListaPrimerMadre.querySelectorAll('.hijo-hora').forEach(hNode => {
+                    hNode.classList.remove('active'); // Nacen deseleccionados en la lista
+                    const idH = hNode.getAttribute('data-id');
+                    
+                    // Los metemos al arreglo de control para que Chart.js los pinte presentes en pastel (0.75)
+                    if (!seriesSeleccionadas.includes(idH)) {
+                        seriesSeleccionadas.push(idH);
+                    }
+
+                    const cromaticaH = obtenerConfiguracionCromatica('HIJO', idH);
+                    hNode.style.backgroundColor = cromaticaH.pastel;
+                    hNode.style.color = '#000000'; 
+                });
+            }
         }
 
-        // =========================================================================
-        // 8. DISPARO FINAL DE CONTROL: FORZAR EL APARICIÓN DE LAS TARJETA CLÍNICAS
-        // =========================================================================
-        // Si el paso anterior ya seleccionó micciones, forzamos el renderizado de sus tarjetas abajo
-        if (seriesSeleccionadas && seriesSeleccionadas.length > 0) {
-            const idInicial = seriesSeleccionadas[seriesSeleccionadas.length - 1];
-            const estudioInicial = datosGlobales[idInicial];
-            
-            if (estudioInicial && estudioInicial.fecha) {
-                // Inyectamos la fecha correspondiente en el encabezado
-                const tituloCalculos = document.getElementById('titulo-calculos');
-                if (tituloCalculos) {
-                    tituloCalculos.textContent = `MÉTRICAS URODINÁMICAS — ${estudioInicial.fecha}`;
-                }
-                
-                // Forzamos el pintado síncrono final de las tarjetas de abajo y sus números
-                categoriaActiva = 'todos'; // Aseguramos el paso libre por el filtro
-                if (typeof mostrarTarjetasCalculos === 'function') {
-                    mostrarTarjetasCalculos(idInicial);
-                }
-                if (typeof actualizarContadoresPestanas === 'function') {
-                    actualizarContadoresPestanas(idInicial);
-                }
-            }
+        if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
+        if (typeof alimentarPanelFlotanteEventos === 'function' && primerMadreFisica) {
+            const textoFechaMadre = primerMadreFisica.textContent.trim();
+            alimentarPanelFlotanteEventos('.hijo-hora', textoFechaMadre, 'sidebar');
         }
         
     } catch (error) {
         console.error("Error inicializando el ecosistema urodinámico:", error);
     }
-
-        // === ENCIENDE LOS BOTONES CLÍNICOS EN EL ARRANQUE ===
-        // Toma la primera micción del historial y pinta sus tarjetas abajo de inmediato
-        const llavesPacientes = Object.keys(datosGlobales);
-        if (llavesPacientes.length > 0 && typeof mostrarTarjetasCalculos === 'function') {
-            mostrarTarjetasCalculos(llavesPacientes[0]);
-            if (typeof actualizarContadoresPestanas === 'function') {
-                actualizarContadoresPestanas(llavesPacientes[0]);
-            }
-        }
 }
+
 
 
 
@@ -161,27 +170,101 @@ function asignarColoresFijos() {
 }
 
 // FUNCIÓN CENTRAL DE CÁLCULO CROMÁTICO ÁUREO
-function obtenerConfiguracionCromatica(idxDia) {
-    // Dispersión áurea basada en el índice del día para máximo contraste contiguo
-    const tono = (idxDia * 137.5) % 360;
+function obtenerConfiguracionCromatica(tipo, idOIndice) {
+    // CORRECCIÓN DE EXTRACCIÓN: Eliminamos las letras "AD_" para quedarnos únicamente con el número limpio (ej. "AD_15" -> 15)
+    const idLimpio = typeof idOIndice === 'string' ? idOIndice.replace('AD_', '') : idOIndice;
+    const valor = parseInt(idLimpio, 10) || 0;
 
-    const fondoSeleccionado = `hsl(${tono}, 85%, 45%)`;
-    const fondoDeseleccionado = `hsl(${tono}, 45%, 70%)`;
-
-    // Determinación automática del contraste del texto para el tono sólido
-    let textoSeleccionado = '#ffffff'; 
-    if (tono > 45 && tono < 95) {
-        textoSeleccionado = '#000000'; // Texto negro si el sólido es amarillo o verde claro
+    // A) COLORES ESTÁTICOS REGULADOS PARA LAS CABECERAS MADRES
+    if (tipo === 'MADRE_MX') {
+        const idx = valor % PALETA_MADRES_MX.length;
+        return { fondo: '#7f8c8d', borde: PALETA_MADRES_MX[idx], texto: '#ffffff' };
+    }
+    if (tipo === 'MADRE_AD') {
+        const idx = valor % PALETA_MADRES_AD.length;
+        return { fondo: '#7f8c8d', borde: PALETA_MADRES_AD[idx], texto: '#ffffff' };
     }
 
+    // B) COLORES MATEMÁTICOS INMUTABLES PARA LOS HIJOS (ESPECTRO ÁUREO 137.5°)
+    // El idOIndice aquí es la clave id del registro (ej. "AD_15")
+    const miccion = datosGlobales[idOIndice];
+    const zPantalla = (miccion && typeof miccion.indiceSecuencialPantalla !== 'undefined')
+                      ? miccion.indiceSecuencialPantalla 
+                      : 0;
+
+    const tono = (zPantalla * 137.5) % 360;
+    
+    // Forzamos los porcentajes reales de diseño: 85% para sólido vivo, 35% y 90% para pastel médico limpio
+    const fondoSeleccionado = `hsl(${tono}, 85%, 45%)`;
+    const fondoDeseleccionado = `hsl(${tono}, 35%, 90%)`;
+
+    let textoSeleccionado = '#ffffff';
+    if (tono > 45 && tono < 95) textoSeleccionado = '#000000'; // Texto negro en amarillos/verdes
+
     return {
-        fondoSeleccionado: fondoSeleccionado,
-        textoSeleccionado: textoSeleccionado,
-        fondoDeseleccionado: fondoDeseleccionado,
-        textoDeseleccionado: '#000000' // El pastel siempre usa texto negro
+        solido: fondoSeleccionado,
+        pastel: fondoDeseleccionado,
+        txtSolido: textoSeleccionado,
+        txtPastel: '#000000' // Siempre texto negro nítido sobre el fondo pastel
     };
 }
 
+// =========================================================================
+// MOTOR CLÍNICO UNIFICADO: FILTRADO Y CÁLCULO DE PROMEDIOS FLEXIBLES
+// =========================================================================
+function procesarMetricasYPromediosUro(criterios = {}) {
+    // 1. Obtener todas las micciones de la base de datos global
+    let miccionesFiltradas = Object.values(datosGlobales);
+
+    // 2. APLICACIÓN DE FILTROS DINÁMICOS Y FLEXIBLES
+    // Filtro A: Por Selección Explícita en el arreglo global
+    if (criterios.soloSeleccionadas === true) {
+        miccionesFiltradas = miccionesFiltradas.filter(item => seriesSeleccionadas.includes(item.id));
+    }
+
+    // Filtro B: Por un Día específico (Formato de tu objeto: "AAAA-MM-DD")
+    if (criterios.fechaDia) {
+        miccionesFiltradas = miccionesFiltradas.filter(item => item.fecha && item.fecha.startsWith(criterios.fechaDia));
+    }
+
+    // Filtro C: Por Ciclo de Sonda de Autodilatación (AD / AU)
+    if (criterios.cicloSonda) {
+        // Buscamos si la micción pertenece al grupo del ciclo mapeado en tu MX_Por_Ciclo
+        if (typeof MX_Por_Ciclo !== 'undefined' && MX_Por_Ciclo[criterios.cicloSonda]) {
+            const idsDelCiclo = MX_Por_Ciclo[criterios.cicloSonda].map(m => m.id);
+            miccionesFiltradas = miccionesFiltradas.filter(item => idsDelCiclo.includes(item.id));
+        }
+    }
+
+    // Filtro D: Criterios Clínicos Combinados Avanzados (Ej: Volumen mayor a X ml)
+    if (typeof criterios.volumenMinimo === 'number') {
+        miccionesFiltradas = miccionesFiltradas.filter(item => item.volumen_total > criterios.volumenMinimo);
+    }
+
+    // 3. CÁLCULO MATEMÁTICO DE LOS PROMEDIOS CLÍNICOS
+    const conteo = miccionesFiltradas.length;
+    let sumaVolumen = 0;
+    let sumaQMax = 0;
+
+    miccionesFiltradas.forEach(item => {
+        sumaVolumen += (item.volumen_total || 0);
+        
+        // Calculamos el Qmax real de esta micción buscando el punto más alto de su flujo
+        if (item.flujo_mls && item.flujo_mls.length > 0) {
+            const qMaxIndividual = Math.max(...item.flujo_mls);
+            sumaQMax += qMaxIndividual;
+        }
+    });
+
+    // 4. ESTRUCTURACIÓN DEL RETORNO CLÍNICO
+    // Devolvemos tanto el listado de registros que pasaron la prueba como sus métricas promediadas
+    return {
+        registrosAfectados: miccionesFiltradas,
+        totalRegistros: conteo,
+        promedioVolumen: conteo > 0 ? Math.round(sumaVolumen / conteo) : 0,
+        promedioQMax: conteo > 0 ? parseFloat((sumaQMax / conteo).toFixed(1)) : 0
+    };
+}
 
 function renderizarListaMicciones() {
     const contenedor = document.getElementById('lista-micciones');
@@ -214,15 +297,15 @@ function renderizarListaMicciones() {
         Object.keys(MX_Por_Dia).forEach((fechaDia, idxDia) => {
             const grupoMX = MX_Por_Dia[fechaDia];
             
-            // El color de la madre se calcula a partir del índice del día (idxDia)
-            const cromaticaMadre = obtenerConfiguracionCromatica(idxDia);
+            // 1. CORREGIDO: Llamamos a la función de dos argumentos de forma correcta
+            const cromaticaMadre = obtenerConfiguracionCromatica('MADRE_MX', idxDia);
 
             const botonMaestro = document.createElement('button');
             botonMaestro.className = 'item-miccion maestro-dia';
             botonMaestro.style.backgroundColor = '#7f8c8d'; 
             botonMaestro.style.color = '#ffffff';
-            // El borde izquierdo de la madre lleva su color de bloque del día
-            botonMaestro.style.borderLeft = `5px solid ${cromaticaMadre.fondoSeleccionado}`;
+            // 2. CORREGIDO: Cambia .fondoSeleccionado a .borde (El color estático brillante HSL)
+            botonMaestro.style.borderLeft = `5px solid ${cromaticaMadre.borde}`;
             botonMaestro.style.whiteSpace = 'nowrap';
             botonMaestro.style.overflow = 'hidden';
             botonMaestro.style.textOverflow = 'ellipsis';
@@ -232,49 +315,45 @@ function renderizarListaMicciones() {
             divSubLista.className = 'sublista-acordeon-hijas';
             divSubLista.style.display = 'none';
             divSubLista.style.width = '100%';
-            
-            const colorIndex = idxDia % PALETA_RESISTENCIAS_ELECTRONICA.length;//
-            const colorSolido = PALETA_RESISTENCIAS_ELECTRONICA[colorIndex];//
-            const fondoPastel = FONDOS_PASTEL_RESISTENCIAS[colorIndex];//
 
             grupoMX.forEach(item => {
                 const bHijo = document.createElement('button');
                 bHijo.className = 'item-miccion hijo-hora';
 
-                // NUEVA LÓGICA DE COLOR INDIVIDUAL (Calculada con la variable z global)
-                const cromaticaHijoIndividual = obtenerConfiguracionCromatica(numeroMiccionGlobal);
-            	datosGlobales[item.id].numeroSecuencialArchivo = numeroMiccionGlobal;
+                // 3. CORREGIDO: El hijo lee su color áureo inmutable usando el ID del registro
+                const cromaticaHijoIndividual = obtenerConfiguracionCromatica('HIJO', item.id);
+                datosGlobales[item.id].numeroSecuencialArchivo = numeroMiccionGlobal;
 
-                // Guardamos todo el paquete de colores dentro de los atributos del botón (dataset)
-                // para que el clic simple, el doble clic y el panel flotante los recuerden sin fallar
-                bHijo.setAttribute('data-fondo-solido', cromaticaHijoIndividual.fondoSeleccionado);
-                bHijo.setAttribute('data-texto-solido', cromaticaHijoIndividual.textoSeleccionado);
-                bHijo.setAttribute('data-fondo-pastel', cromaticaHijoIndividual.fondoDeseleccionado);
-                bHijo.setAttribute('data-texto-pastel', cromaticaHijoIndividual.textoDeseleccionado);
-                bHijo.setAttribute('data-borde-madre', cromaticaMadre.fondoSeleccionado);
+                // 4. CORREGIDO: Sincronizamos tus atributos dataset usando los nuevos nombres estrictos de la fórmula
+                bHijo.setAttribute('data-fondo-solido', cromaticaHijoIndividual.solido);
+                bHijo.setAttribute('data-texto-solido', cromaticaHijoIndividual.txtSolido);
+                bHijo.setAttribute('data-fondo-pastel', cromaticaHijoIndividual.pastel);
+                bHijo.setAttribute('data-texto-pastel', cromaticaHijoIndividual.txtPastel);
+                bHijo.setAttribute('data-borde-madre', cromaticaMadre.borde);
 
-                // Guardamos también el color en el objeto de datos para que la gráfica pinte la línea idéntica
-                item.colorGraficaLinea = cromaticaHijoIndividual.fondoSeleccionado;
-            	datosGlobales[item.id].colorGraficaLinea = cromaticaHijoIndividual.fondoSeleccionado;
+                // Mantenemos tus asignaciones de control inalteradas
+                item.colorGraficaLinea = cromaticaHijoIndividual.solido;
+                datosGlobales[item.id].colorGraficaLinea = cromaticaHijoIndividual.solido;
 
-                        // EVALUACIÓN DEL ESTADO INICIAL
+                // 5. EVALUACIÓN DEL ESTADO INICIAL (Consonancia total con los datasets)
                 if (seriesSeleccionadas.includes(item.id)) {
                     bHijo.classList.add('active');
-                    bHijo.style.backgroundColor = cromaticaHijoIndividual.fondoSeleccionado; 
-                    bHijo.style.color = cromaticaHijoIndividual.textoSeleccionado;
+                    bHijo.style.backgroundColor = cromaticaHijoIndividual.solido; 
+                    bHijo.style.color = cromaticaHijoIndividual.txtSolido;
                 } else {
-                    bHijo.style.backgroundColor = cromaticaHijoIndividual.fondoDeseleccionado; 
-                    bHijo.style.color = cromaticaHijoIndividual.textoDeseleccionado;
+                    bHijo.style.backgroundColor = cromaticaHijoIndividual.pastel; 
+                    bHijo.style.color = cromaticaHijoIndividual.txtPastel;
                 }
 
-                // REGLA DE ORO ACTUALIZADA: El borde del botón se hereda del color sólido de la madre
-                bHijo.style.borderLeft = `4px solid ${cromaticaMadre.fondoSeleccionado}`;
+                // 6. REGLA DE ORO ACTUALIZADA: El borde izquierdo del hijo hereda sólidamente el color de la madre
+                bHijo.style.borderLeft = `4px solid ${cromaticaMadre.borde}`;
                 bHijo.style.paddingLeft = '15px';
                 bHijo.style.width = '100%';
                 bHijo.style.whiteSpace = 'nowrap';
+                bHijo.setAttribute('data-id', item.id); 
                 
                 const [, h] = item.datos.fecha.split(' ');
-                    bHijo.innerHTML = `<span style="font-size:0.68rem;">${h.substring(0,5)}</span>`;
+                bHijo.innerHTML = `<span style="font-size:0.68rem;">${h.substring(0,5)}</span>`;
 
                 bHijo.onclick = function(e) {   //CLICK SENCILLO HIJOS MX
                     e.stopPropagation();
@@ -334,162 +413,152 @@ function renderizarListaMicciones() {
                 numeroMiccionGlobal++;
             }); // Aquí cierra el grupoMX.forEach
 
-            //-ASIGNACION DE FUNCIONES DEL CLICK O TOQUE EN MICCIONES        
+            // === SUSTITUCIÓN UNIFICADA EN BOTONMAESTRO.ONCLICK (NIVEL 1 Y NIVEL 2) ===
             botonMaestro.onclick = function(e) {
                 e.stopPropagation();
+                
+                // Traemos el color real del bloque usando el método de dos argumentos de forma correcta
+                const cromaticaFijaMadre = obtenerConfiguracionCromatica('MADRE_MX', idxDia);
 
-                // === NIVEL 1: CLIC SIMPLE (Toggle Selección habitual), MICCIONES ===
-                if (e.detail === 1) {
+                // =========================================================================
+                // NIVEL 1: CLIC SIMPLE (Toggle Promedio Grueso Sólido + Remoción de Hijos)
+                // =========================================================================
+                if (e.detail === 1) {  //I-MX-1Click
                     if (typeof reiniciarBotonSecuencial === 'function') reiniciarBotonSecuencial();
                     if (typeof cerrarVentanaPaciente === 'function') cerrarVentanaPaciente();
                     if (modoCalculosActivo && typeof regresarGraficaOriginal === 'function') regresarGraficaOriginal();
 
                     botonMaestro.classList.toggle('active');
-                    if (botonMaestro.classList.contains('active')) {                        
-                    	//botonMaestro.style.backgroundColor = '#7f8c8d';
-                    	//botonMaestro.style.color = '#ffffff';
-                    	botonMaestro.style.backgroundColor = cromaticaMadre.fondoSeleccionado;
-                    	botonMaestro.style.color = cromaticaMadre.textoSeleccionado;
-                        
-                        grupoMX.forEach(item => { 
-                            if (!seriesSeleccionadas.includes(item.id)) seriesSeleccionadas.push(item.id);
-                        });
-                        
-                        // 2. CORREGIDO: Cada hijo se enciende con su color sólido individual usando su dataset
-                        divSubLista.querySelectorAll('.item-miccion, .hijo-estudio').forEach(bh => {
-                            bh.classList.add('active');
-                            bh.style.backgroundColor = bh.getAttribute('data-fondo-solido');
-                            bh.style.color = bh.getAttribute('data-texto-solido');
-                        });
+                    const estaActivoAhora = botonMaestro.classList.contains('active');
+                    
+                    if (estaActivoAhora) {
+                        // SOLUClÓN: Absorbe de forma rígida el mismo color que tiene su borde izquierdo
+                        botonMaestro.style.backgroundColor = cromaticaFijaMadre.borde;
+                        botonMaestro.style.color = '#ffffff';
+                        botonMaestro.setAttribute('data-graficar-promedio-fecha', fechaDia);
                     } else {
+                        // Se apaga: Regresa a su gris de diseño pasivo uniforme
                         botonMaestro.style.backgroundColor = '#7f8c8d';
-                    	botonMaestro.style.color = '#ffffff';
-                    	//botonMaestro.style.backgroundColor = cromaticaMadre.fondoDeseleccionado;
-						//botonMaestro.style.color = cromaticaMadre.textoDeseleccionado;
+                        botonMaestro.style.color = '#ffffff';
+                        botonMaestro.removeAttribute('data-graficar-promedio-fecha');
                         
+                        // REQUERIMIENTO: Al deseleccionar la madre, removemos de forma rígida todos los hijos de este día de la gráfica
                         grupoMX.forEach(item => {
-                            const idx = seriesSeleccionadas.indexOf(item.id);
-                            if (idx !== -1) seriesSeleccionadas.splice(idx, 1);
+                            const idxHijoActivo = seriesSeleccionadas.indexOf(item.id);
+                            if (idxHijoActivo !== -1) {
+                                seriesSeleccionadas.splice(idxHijoActivo, 1);
+                            }
                         });
-                        
-                        // 3. CORREGIDO: Cada hijo se apaga regresando a su tono pastel individual usando su dataset
-                        divSubLista.querySelectorAll('.item-miccion, .hijo-estudio').forEach(bh => {
-                            bh.classList.remove('active');
-                            bh.style.backgroundColor = bh.getAttribute('data-fondo-pastel');
-                            bh.style.color = bh.getAttribute('data-texto-pastel');
-                        });
-                    }
 
-                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
-                    if (grupoMX.length > 0 && typeof mostrarTarjetasCalculos === 'function') {
-                        const ult = grupoMX[grupoMX.length - 1];
-                        document.getElementById('titulo-calculos').textContent = `MÉTRICAS URODINÁMICAS — ${ult.datos.fecha}`;
-                        mostrarTarjetasCalculos(ult.id);
-                        actualizarContadoresPestanas(ult.id);
-                    }
-                    if (typeof alimentarPanelFlotanteEventos === 'function') {
-                    	alimentarPanelFlotanteEventos('.hijo-hora', fechaDia, 'sidebar');
-                    }              
-                }
-
-                // === NIVEL 2: DOBLE CLIC MICCIONES ===
-                if (e.detail === 2) {
-                    e.preventDefault();
-                    
-                    // 1. SELECCIÓN COERCITIVA: Si la madre estaba apagada, se activa el bloque
-                    if (!botonMaestro.classList.contains('active')) {
-                        if (typeof reiniciarBotonSecuencial === 'function') reiniciarBotonSecuencial();
-                        if (typeof cerrarVentanaPaciente === 'function') cerrarVentanaPaciente();
-                        if (modoCalculosActivo && typeof regresarGraficaOriginal === 'function') regresarGraficaOriginal();
-
-                        botonMaestro.classList.add('active');
-                        
-                        // CORREGIDO: La madre mantiene su color gris de diseño, no usa bh
-                        //botonMaestro.style.backgroundColor = '#7f8c8d';
-                        //botonMaestro.style.color = '#ffffff';
-                        botonMaestro.style.backgroundColor = cromaticaMadre.fondoDeseleccionado;
-						botonMaestro.style.color = cromaticaMadre.textoDeseleccionado;
-
-                        
-                        // Añadimos de forma segura todos los IDs de este día al arreglo global
-                        grupoMX.forEach(item => {
-                            if (!seriesSeleccionadas.includes(item.id)) seriesSeleccionadas.push(item.id);
-                        });
-                        
-                        // CORREGIDO: Encendemos a todos los hijos de este bloque con sus colores individuales
-                        divSubLista.querySelectorAll('.item-miccion, .hijo-hora').forEach(hijoNode => {
-                            hijoNode.classList.add('active');
-                            hijoNode.style.backgroundColor = hijoNode.getAttribute('data-fondo-solido');
-                            hijoNode.style.color = hijoNode.getAttribute('data-texto-solido');
-                        });
-                    }
-                    
-                    // 2. Activamos el display de la sublista en la sombra del DOM para que la subrutina la lea
-                    divSubLista.style.display = 'block'; 
-                    
-                    // 3. Renderizamos la gráfica colectiva del bloque unificado
-                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
-                    
-                    // 4. Invocamos la subrutina centralizada pasando la clase de los hijos y el identificador (fechaDia)
-                    if (typeof alimentarPanelFlotanteClínico === 'function') {
-                        alimentarPanelFlotanteClínico('.hijo-hora', fechaDia);
-                    }
-                }
-
-                // === NIVEL 3 : TRIPLE PANEL IZQUIERDO CLIC MICCIONES ===
-                if (e.detail === 3) {                	
-                    e.preventDefault();
-                    // 1. Vaciamos la selección global y adoptamos únicamente los elementos de esta madre
-                    seriesSeleccionadas = grupoMX.map(item => item.id);
-
-                    // 2. APAGADO COERCITIVO: Limpia clases y contrae de raíz todas las demás madres
-                    // CORREGIDO: Al apagar los otros bloques, debemos asegurar que sus hijos también regresen a sus tonos pastel individuales
-                    document.querySelectorAll('.sublista-acordeon-hijas').forEach(sublistaAnterior => {
-                        if (sublistaAnterior !== divSubLista) {
-                            sublistaAnterior.querySelectorAll('.item-miccion, .hijo-hora').forEach(hijoViejo => {
-                                hijoViejo.classList.remove('active');
-                                hijoViejo.style.backgroundColor = hijoViejo.getAttribute('data-fondo-pastel');
-                                hijoViejo.style.color = hijoViejo.getAttribute('data-texto-pastel');
-                            });
-                        }
-                    });
-
-                    contenedor.querySelectorAll('.maestro-dia, .maestro-dilatacion').forEach(nodo => {
-                        nodo.classList.remove('active');
-                        nodo.removeAttribute('class'); 
-                        nodo.className = nodo.classList.contains('maestro-dia') ? 'item-miccion maestro-dia' : 'item-miccion maestro-dilatacion';
-                        
-                        nodo.style.backgroundColor = '#7f8c8d'; // Estado pasivo maestro uniforme
-                        nodo.style.color = '#ffffff';
-                    });
-                
-                    // 3. Encendemos exclusivamente los componentes de este grupo activo
-                    botonMaestro.classList.add('active');
-                    // CORREGIDO: Mantiene gris reglamentario
-                    //botonMaestro.style.backgroundColor = '#7f8c8d';
-                    //botonMaestro.style.color = '#ffffff';
-                 	botonMaestro.style.backgroundColor = cromaticaMadre.fondoSeleccionado;
-                    botonMaestro.style.color = cromaticaMadre.textoSeleccionado;
-
-                    
-                    divSubLista.style.display = 'block'; 
-                    divSubLista.querySelectorAll('.item-miccion, .hijo-hora').forEach(bhNode => {
-                        bhNode.classList.add('active');
-                        bhNode.style.backgroundColor = bhNode.getAttribute('data-fondo-solido');
-                        bhNode.style.color = bhNode.getAttribute('data-texto-solido');
-                    });
-
-                    // 4. Renderizamos la gráfica colectiva unificada
-                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
-
-                    // 5. CORRECCIÓN CRONOLÓGICA: Micro-pausa asíncrona para asegurar el apagado completo en el DOM
-                    setTimeout(() => {
+                        // Limpiamos de forma inmediata las tarjetas correspondientes de este día en el drawer
                         if (typeof alimentarPanelFlotanteEventos === 'function') {
-                        	alimentarPanelFlotanteEventos('.hijo-hora', fechaDia);
+                            alimentarPanelFlotanteEventos('.hijo-hora', fechaDia, 'sidebar');
                         }
-                    }, 20);
+                    }
+
+                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
                 }
-            };        
+                
+                // =========================================================================
+                // NIVEL 2: DOBLE CLIC CORREGIDO (Abre Acordeón + Hijos Pastel + CORRECCIÓN DRAWER)
+                // =========================================================================
+                if (e.detail === 2) {    //I-MX-2Click
+                    e.preventDefault();
+                    if (typeof reiniciarBotonSecuencial === 'function') reiniciarBotonSecuencial();
+                    if (typeof cerrarVentanaPaciente === 'function') cerrarVentanaPaciente();
+                    if (modoCalculosActivo && typeof regresarGraficaOriginal === 'function') regresarGraficaOriginal();
+
+                    botonMaestro.classList.add('active');
+                    botonMaestro.style.backgroundColor = cromaticaFijaMadre.borde;
+                    botonMaestro.style.color = '#ffffff';
+                    botonMaestro.setAttribute('data-graficar-promedio-fecha', fechaDia);
+
+                    divSubLista.style.display = 'block';
+
+                    // Forzamos la asignación de color pastel real con sus dos argumentos para corregir el gris
+                    divSubLista.querySelectorAll('.hijo-hora').forEach(hijoNode => {
+                        hijoNode.classList.remove('active');
+                        const idHijo = hijoNode.getAttribute('data-id');
+                        
+                        // Llamamos la función con sus 2 argumentos correctos para pintar el pastel áureo
+                        const cromaticaHijoReal = obtenerConfiguracionCromatica('HIJO', idHijo);
+                        hijoNode.style.backgroundColor = cromaticaHijoReal.pastel;
+                        hijoNode.style.color = cromaticaHijoReal.txtPastel; // Fuerza texto negro nítido
+
+                        if (!seriesSeleccionadas.includes(idHijo)) {
+                            seriesSeleccionadas.push(idHijo);
+                        }
+                    });
+
+                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
+                    
+                    if (typeof alimentarPanelFlotanteEventos === 'function') {
+                        alimentarPanelFlotanteEventos('.hijo-hora', fechaDia, 'sidebar');
+                    }
+                }
+                
+                // =========================================================================
+                // NIVEL 3: TRIPLE CLIC (Deselección Resto + Inicialización Rígida)
+                // =========================================================================
+                if (e.detail === 3) {  //I-MX-3Click
+                    e.preventDefault();
+                    if (typeof reiniciarBotonSecuencial === 'function') reiniciarBotonSecuencial();
+                    if (typeof cerrarVentanaPaciente === 'function') cerrarVentanaPaciente();
+                    if (modoCalculosActivo && typeof regresarGraficaOriginal === 'function') regresarGraficaOriginal();
+
+                    seriesSeleccionadas = [];
+
+                    // Apagamos y contraemos rígidamente todas las demás madres de la pantalla
+                    document.querySelectorAll('.maestro-dia').forEach(otraMadre => {
+                        if (otraMadre !== botonMaestro) {
+                            otraMadre.classList.remove('active');
+                            otraMadre.style.backgroundColor = '#7f8c8d';
+                            otraMadre.style.color = '#ffffff';
+                            otraMadre.removeAttribute('data-graficar-promedio-fecha');
+                            
+                            const otraSublista = otraMadre.nextElementSibling;
+                            if (otraSublista && otraSublista.classList.contains('sublista-acordeon-hijas')) {
+                                otraSublista.style.display = 'none';
+                            }
+                        }
+                    });
+
+                    botonMaestro.classList.add('active');
+                    botonMaestro.style.backgroundColor = cromaticaFijaMadre.borde;
+                    botonMaestro.style.color = '#ffffff';
+                    botonMaestro.setAttribute('data-graficar-promedio-fecha', fechaDia);
+
+                    divSubLista.style.display = 'block';
+
+                    // Corregimos la llamada de dos argumentos para los hijos en el nivel 3
+                    divSubLista.querySelectorAll('.hijo-hora').forEach(hijoNode => {
+                        hijoNode.classList.remove('active');
+                        const idHijo = hijoNode.getAttribute('data-id');
+                        
+                        const cromaticaHijoReal = obtenerConfiguracionCromatica('HIJO', idHijo);
+                        hijoNode.style.backgroundColor = cromaticaHijoReal.pastel;
+                        hijoNode.style.color = cromaticaHijoReal.txtPastel;
+
+                        if (!seriesSeleccionadas.includes(idHijo)) {
+                            seriesSeleccionadas.push(idHijo);
+                        }
+                    });
+
+                    if (typeof renderizarGraficaEstandar === 'function') renderizarGraficaEstandar();
+                    
+                    if (typeof alimentarPanelFlotanteEventos === 'function') {
+                        alimentarPanelFlotanteEventos('.hijo-hora', fechaDia, 'sidebar');
+                    }
+                }
+
+                // =========================================================================
+                // NIVEL 4: CUARTO CLIC (Alerta Reglamentaria Pendiente)
+                // =========================================================================
+                if (e.detail >= 4) {
+                    e.preventDefault();
+                    alert("I-MX-4");
+                }
+            };      
 
             contenedor.appendChild(botonMaestro);
             contenedor.appendChild(divSubLista);
@@ -559,27 +628,29 @@ function renderizarListaMicciones() {
                               : (parseInt(item.id, 10) || 0);
 
                 // 2. GENERAR CROMÁTICA UNIFORME (Mismo color en MX, AD y Gráfica)
-                const cromaticaHijoIndividual = obtenerConfiguracionCromatica(zReal);
+                const cromaticaHijoIndividual = obtenerConfiguracionCromatica('HIJO', item.id);
+                datosGlobales[item.id].numeroSecuencialArchivo = numeroMiccionGlobal;
 
-                // Estampamos los atributos de forma fija en la piel del botón
-                bHijo.setAttribute('data-fondo-solido', cromaticaHijoIndividual.fondoSeleccionado);
-                bHijo.setAttribute('data-texto-solido', cromaticaHijoIndividual.textoSeleccionado);
-                bHijo.setAttribute('data-fondo-pastel', cromaticaHijoIndividual.fondoDeseleccionado);
-                bHijo.setAttribute('data-texto-pastel', cromaticaHijoIndividual.textoDeseleccionado);
-                bHijo.setAttribute('data-borde-madre', cromaticaCiclo.fondoSeleccionado);
+                // 4. Sincronizamos tus atributos dataset usando los nuevos nombres estrictos de la fórmula
+                bHijo.setAttribute('data-fondo-solido', cromaticaHijoIndividual.solido);
+                bHijo.setAttribute('data-texto-solido', cromaticaHijoIndividual.txtSolido);
+                bHijo.setAttribute('data-fondo-pastel', cromaticaHijoIndividual.pastel);
+                bHijo.setAttribute('data-texto-pastel', cromaticaHijoIndividual.txtPastel);
+                bHijo.setAttribute('data-borde-madre', cromaticaMadre.borde);
 
-                // Sincronizamos la cesta maestra global para que Chart.js dibuje la línea EXACTAMENTE igual
-                datosGlobales[item.id].colorGraficaLinea = cromaticaHijoIndividual.fondoSeleccionado;
+                item.colorGraficaLinea = cromaticaHijoIndividual.solido;
+                datosGlobales[item.id].colorGraficaLinea = cromaticaHijoIndividual.solido;
 
-                // 3. EVALUACIÓN DEL ESTADO INICIAL
+                // 5. EVALUACIÓN DEL ESTADO INICIAL (Forzamos texto negro #000000 para el estado pasivo pastel)
                 if (seriesSeleccionadas.includes(item.id)) {
                     bHijo.classList.add('active');
-                    bHijo.style.backgroundColor = cromaticaHijoIndividual.fondoSeleccionado; 
-                    bHijo.style.color = cromaticaHijoIndividual.textoSeleccionado;
+                    bHijo.style.backgroundColor = cromaticaHijoIndividual.solido; 
+                    bHijo.style.color = cromaticaHijoIndividual.txtSolido;
                 } else {
-                    bHijo.style.backgroundColor = cromaticaHijoIndividual.fondoDeseleccionado; 
-                    bHijo.style.color = cromaticaHijoIndividual.textoDeseleccionado;
+                    bHijo.style.backgroundColor = cromaticaHijoIndividual.pastel; 
+                    bHijo.style.color = '#000000'; // Destruye la herencia de texto blanco en el panel izquierdo
                 }
+
 
                 // 4. Borde sólido que hereda el color brillante de su ciclo de sonda
                 bHijo.style.borderLeft = `4px solid ${bHijo.getAttribute('data-borde-madre')}`;
@@ -588,7 +659,12 @@ function renderizarListaMicciones() {
                 bHijo.style.whiteSpace = 'nowrap';
 
                 const [fStr, hStr] = item.datos.fecha.split(' ');
-                bHijo.innerHTML = `<span style="font-size:0.65rem;">${fStr} ${hStr.substring(0,5)}</span>`;
+                const diaUnica = fStr.substring(8, 10); 
+                const horaUnica = hStr.substring(0, 2); 
+
+                bHijo.setAttribute('data-id', item.id);
+                bHijo.innerHTML = `<span style="font-size:0.65rem;">${diaUnica} ${horaUnica}</span>`;
+
 
                 // === 5. EVENTO CLICK SENCILLO (MODO AD) ===
                 bHijo.onclick = function(e) {
@@ -945,7 +1021,7 @@ function renderizarGraficaIndividual(id) {
         label: `${id}`,
         data: puntos,
         //borderColor: miccion.colorGraficaLinea || '#162B35', 
-    	borderColor: '#FF0000', //cromaticaCiclo.fondoSeleccionado,
+    	borderColor: '#FF00FF', //cromaticaCiclo.fondoSeleccionado,
         backgroundColor: 'transparent',
         borderWidth: 2,
         tension: 0.4, // Línea suavizada de dinámica de fluidos ICS
@@ -958,28 +1034,119 @@ function renderizarGraficaIndividual(id) {
 
 function renderizarGraficaEstandar() {
     modoCalculosActivo = false;
-    document.getElementById('btn-salir-modo').style.display = 'none';
+    const btnSalir = document.getElementById('btn-salir-modo');
+    if (btnSalir) btnSalir.style.display = 'none';
 
-    if (seriesSeleccionadas.length === 0) {
+    // Inicializamos el contenedor de conjuntos de datos para Chart.js
+    const datasets = [];
+
+        // =========================================================================
+    // TRATO 1: GRAFICACIÓN FLEXIBLE DE HIJOS INDIVIDUALES (ESTADOS DINÁMICOS)
+    // =========================================================================
+    if (seriesSeleccionadas && seriesSeleccionadas.length > 0) {
+        seriesSeleccionadas.forEach(id => {
+            const miccion = datosGlobales[id];
+            if (!miccion || !miccion.tiempo_seg) return;
+
+            // Buscamos si el botón físico del hijo está encendido con .active en la pantalla
+            const btnFisico = document.querySelector(`button[data-id="${id}"]`);
+            const estaActivoEnLista = btnFisico ? btnFisico.classList.contains('active') : false;
+
+            const cromaticaHijoReal = obtenerConfiguracionCromatica('HIJO', id);
+
+            let grosorLinea = 1.5;
+            let colorLinea = cromaticaHijoReal.solido;
+
+            // REGLA: Si el botón físico no está explícitamente encendido (active),
+            // la gráfica lo dibuja de forma obligatoria en su tono pastel delgado de 0.75
+            if (!estaActivoEnLista) {
+                grosorLinea = 0.75;
+                colorLinea = cromaticaHijoReal.pastel; 
+            }
+
+            datasets.push({
+                label: `Micción ${id}`,
+                data: miccion.tiempo_seg.map((t, idx) => ({ x: t, y: miccion.flujo_mls[idx] })),
+                borderColor: colorLinea,
+                backgroundColor: 'transparent',
+                borderWidth: grosorLinea,
+                tension: 0.14,
+                pointRadius: 0,
+                showLine: true,
+                order: 2
+            });
+        });
+    }
+
+    // =========================================================================
+    // TRATO 2: GRAFICACIÓN DE PROMEDIOS DIARIOS DE TIEMPO EXTENDIDO (I-MX-1click)
+    // =========================================================================
+    const madresConPromedio = document.querySelectorAll('.maestro-dia[data-graficar-promedio-fecha]');
+    
+    madresConPromedio.forEach(madreNode => {
+        const fechaFiltrar = madreNode.getAttribute('data-graficar-promedio-fecha');
+        const resultadoMetricas = procesarMetricasYPromediosUro({ fechaDia: fechaFiltrar });
+        
+        if (resultadoMetricas.totalRegistros > 0) {
+            const colorBordeMadre = window.getComputedStyle(madreNode).borderLeftColor || '#7f8c8d';
+            
+            // 1. REQUERIMIENTO CLÍNICO: Encontrando la micción más larga de todo el día (Cesta Máxima)
+            let miccionMasLarga = resultadoMetricas.registrosAfectados[0];
+            resultadoMetricas.registrosAfectados.forEach(m => {
+                if (m.tiempo_seg && m.tiempo_seg.length > miccionMasLarga.tiempo_seg.length) {
+                    miccionMasLarga = m;
+                }
+            });
+
+            // 2. MATEMÁTICA DE PROMEDIOS CON RELLENO EN CERO PARA AUSENTES
+            const datosPuntosPromedio = miccionMasLarga.tiempo_seg.map((t, idxSeg) => {
+                let sumaFlujoEnSegundo = 0;
+                let totalMiccionesDelDia = resultadoMetricas.totalRegistros;
+                
+                resultadoMetricas.registrosAfectados.forEach(m => {
+                    if (m.flujo_mls && typeof m.flujo_mls[idxSeg] !== 'undefined') {
+                        sumaFlujoEnSegundo += m.flujo_mls[idxSeg];
+                    } else {
+                        // Si la micción ya terminó (datos ausentes), sumamos cero de forma explícita
+                        sumaFlujoEnSegundo += 0;
+                    }
+                });
+                
+                return {
+                    x: t,
+                    y: parseFloat((sumaFlujoEnSegundo / totalMiccionesDelDia).toFixed(2))
+                };
+            });
+
+            const partesF = fechaFiltrar.split('-');
+            const etiquetaFecha = partesF.length === 3 ? `${partesF[2]}/${partesF[1]}` : fechaFiltrar;
+
+            datasets.push({
+                label: `Promedio ${etiquetaFecha}`,
+                data: datosPuntosPromedio,
+                borderColor: colorBordeMadre,
+                backgroundColor: 'transparent',
+                borderWidth: 2, // Grosor 3 sólido unificado reglamentario promedio
+                tension: 0.14,
+                pointRadius: 0,
+                showLine: true,
+                order: 1
+            });
+        }
+    });
+
+    // =========================================================================
+    // EVALUACIÓN DEL LIENZO: Si no hay curvas que pintar, destruimos la instancia
+    // =========================================================================
+    if (datasets.length === 0) {
         if (chartInstance) chartInstance.destroy();
         return;
     }
 
-    const datasets = seriesSeleccionadas.map(id => {
-        const miccion = datosGlobales[id];
-        return {
-            label: `${id}`,
-            data: miccion.tiempo_seg.map((t, idx) => ({ x: t, y: miccion.flujo_mls[idx] })),
-            borderColor: miccion.colorGraficaLinea || '#162B35', 
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            tension: 0.14,
-            pointRadius: 0,
-            showLine: true
-        };
-    });
+    // Actualizamos el Chart de forma nativa con los conjuntos de datos recopilados
     configurarYActualizarChart(datasets, 'Tiempo (segundos)', 'Velocidad de Flujo (mL/s)', 5, 2, false);
 }
+
 
 // Variable global para mapear de forma estricta e idéntica las fechas en el eje X sin desfase
 let mapaFechasHistorico = [];
@@ -1541,22 +1708,15 @@ function conmutarDimensionesPantallaCompleta() {
  * Función Auxiliar Centralizadora de Redibujo con Memoria de Estado
  */
 function forzarRedibujoGraficaActual() {
-    // CORRECCIÓN: Si estamos en modo cálculo, lee de forma rígida la persistencia global
+    // CORRECCIÓN DE REDIBUJADO: Si estamos en modo cálculo, lee de forma rígida la persistencia global
     if (modoCalculosActivo && calculoHistoricoActivoId && calculoHistoricoActivoClave) {
-        activarGraficaCalculos(calculoHistoricoActivoId, calculoHistoricoActivoClave);
+        if (typeof activarGraficaCalculos === 'function') {
+            activarGraficaCalculos(calculoHistoricoActivoId, calculoHistoricoActivoClave);
+        }
     } else {
-        // Modo estándar: Recupera la micción basándose en la fecha del encabezado
-        const titulo = document.getElementById('titulo-calculos').textContent;
-        const partes = titulo.split(' — ');
-        if (partes.length > 1) {
-            const fechaActiva = partes[1].trim();
-            const idActivo = Object.keys(datosGlobales).find(key => datosGlobales[key].fecha === fechaActiva);
-            if (idActivo) {
-                renderizarGraficaIndividual(idActivo);
-            } else {
-                renderizarGraficaEstandar();
-            }
-        } else {
+        // MODO ESTÁNDAR PERMANENTE: Al maximizar o redimensionar la ventana, la gráfica 
+        // respeta de forma estricta la vista colectiva unificada del panel izquierdo (MX y AD)
+        if (typeof renderizarGraficaEstandar === 'function') {
             renderizarGraficaEstandar();
         }
     }
@@ -2226,11 +2386,19 @@ function ejecutarFiltradoDatosUro() {
             const primerBotonVisible = contenedor.querySelector('.item-miccion');
             if (primerBotonVisible) {
                 if (!esModoDilatacionesActivo) {
+                    // Clic simple para activar el estado inicial del primer bloque
                     primerBotonVisible.click();
                 }
-                primerBotonVisible.ondblclick();
+                // CORREGIDO: Sintaxis estándar de JavaScript para disparar el evento doble clic de forma rígida
+                if (typeof primerBotonVisible.ondblclick === 'function') {
+                    primerBotonVisible.ondblclick();
+                } else {
+                    const eventoDoble = new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 });
+                    primerBotonVisible.dispatchEvent(eventoDoble);
+                }
             }
         }
+        
     } else {
         seriesSeleccionadas = [];
         if (typeof renderizarListaMicciones === 'function') {
@@ -2293,18 +2461,14 @@ function alimentarPanelFlotanteEventos(selectoresHijosClase, idMadreActual, orig
         const subLista = madre.nextElementSibling;
         if (!subLista || !subLista.classList.contains('sublista-acordeon-hijas')) return;
         
-        const hijosDeEstaMadre = subLista.querySelectorAll(selectoresHijosClase);
+        // SOLUCIÓN REAL: Buscamos genéricamente por cualquier botón que tenga data-id, evitando que el bucle trone
+        const hijosDeEstaMadre = subLista.querySelectorAll('button[data-id]');
         let conteoHijosActivosInSitu = 0;
         
         hijosDeEstaMadre.forEach(btnOriginal => {
             if (typeof datosGlobales !== 'undefined') {
-                const idMiccionReal = Object.keys(datosGlobales).find(idKey => {
-                    const est = datosGlobales[idKey];
-                    if (!est || !est.fecha) return false;
-                    const partes = est.fecha.split(' ');
-                    return partes[1] && btnOriginal.innerHTML.includes(partes[1].substring(0, 5));
-                });
-                if (idMiccionReal && seriesSeleccionadas.includes(idMiccionReal)) {
+                const idMiccionRígido = btnOriginal.getAttribute('data-id');
+                if (idMiccionRígido && seriesSeleccionadas.includes(idMiccionRígido)) {
                     conteoHijosActivosInSitu++;
                 }
             }
@@ -2359,24 +2523,15 @@ function alimentarPanelFlotanteEventos(selectoresHijosClase, idMadreActual, orig
     let nodoHijoDestinoParaAnimar = null;
 
     // 2. ESCANEO CLÍNICO ESTRICTO: Solo barremos las sublistas de las madres activas
-    // 2. ESCANEO CLÍNICO ESTRICTO: Solo barremos las sublistas de las madres activas
     madresActivas.forEach(madreAsociada => {
         const subLista = madreAsociada.nextElementSibling;
         if (!subLista || !subLista.classList.contains('sublista-acordeon-hijas')) return;
 
-        subLista.querySelectorAll(selectoresHijosClase).forEach((btnOriginal, indiceHijo) => {
+        // Barremos genéricamente todos los botones hijos que tengan el atributo data-id asignado
+        subLista.querySelectorAll('button[data-id]').forEach((btnOriginal, indiceHijo) => {
             
-            // === ASIGNACIÓN DE ID INDESTRUCTIBLE ===
-            let idMiccionReal = null;
-            if (typeof datosGlobales !== 'undefined') {
-                idMiccionReal = Object.keys(datosGlobales).find(idKey => {
-                    const est = datosGlobales[idKey];
-                    if (!est || !est.fecha) return false;
-                    const partes = est.fecha.split(' ');
-                    if (!partes || partes.length < 2) return false;
-                    return btnOriginal.innerHTML.includes(partes[1].substring(0, 5));
-                });
-            }
+            // MIGRACIÓN PROFESIONAL AL ID: Extraemos la llave maestra directamente de su piel
+            let idMiccionReal = btnOriginal.getAttribute('data-id');
 
             // Generamos un identificador único para el DOM basado en datos o en su posición física exacta
             const idUnicoInfallible = idMiccionReal || `${madreAsociada.id || 'madre'}-hijo-${indiceHijo}`;
@@ -2391,42 +2546,38 @@ function alimentarPanelFlotanteEventos(selectoresHijosClase, idMadreActual, orig
             clonBtn.setAttribute('data-id-miccion', idUnicoInfallible);
             clonBtn.setAttribute('data-id-madre', madreAsociada.id || madreAsociada.innerHTML);
 
-            // === LÓGICA DE ESTADO FIJO SALVO ACCIÓN EXPLÍCITA ===
-            let estaApagado = false;
-            
-            // Si estamos interactuando dentro del panel, validamos estrictamente contra el arreglo global
-            if (origenAccion && origenAccion.startsWith('panel')) {
-                if (idMiccionReal) {
-                    estaApagado = !seriesSeleccionadas.includes(idMiccionReal);
-                }
-            } else {
-                // Si venimos de abrir la madre (sidebar) o carga inicial, nacen encendidos por decreto
-                estaApagado = false;
+            // === LÓGICA DE ESTADO CLÍNICO REAL UNIFICADO ===
+            // Evaluamos la verdad de los datos: si el ID no está explícitamente activo, 
+            // el botón de control NACE apagado (Pastel / Negro) de forma obligatoria
+            let estaApagado = true;
+            if (idMiccionReal) {
+                estaApagado = !seriesSeleccionadas.includes(idMiccionReal);
             }
 
+            // === SINCRONIZACIÓN DE CLONES MIGRADA AL MOTOR MATEMÁTICO ===
             function sincronizarEstiloClon() {
                 clonBtn.className = btnOriginal.className;
                 
-                // Extraemos el color vivo real de la madre
-                let colorOriginalVivo = btnOriginal.style.backgroundColor;
-                if (!colorOriginalVivo || colorOriginalVivo === '') {
-                    colorOriginalVivo = madreAsociada.style.backgroundColor || '#162B35';
-                }
+                // SOLUCIÓN CLÍNICA: En lugar de raspar data-id del DOM que puede estar vacío en el arranque,
+                // consumimos de forma rígida la variable idMiccionReal calculada por el bucle padre.
+                // Limpiamos las letras "AD_" o "MX_" para pasarle el número puro a la fórmula HSL
+                const idLimpioParaFormula = typeof idMiccionReal === 'string' ? idMiccionReal.replace('AD_', '') : idMiccionReal;
+                const cromaticaRealHijo = obtenerConfiguracionCromatica('HIJO', idLimpioParaFormula);
 
                 if (estaApagado) {
-                    // ESTADO OFF PASTEL: Efecto cuadro blanco al 55% sobre su propio color materno
-                    clonBtn.style.opacity = '1';
-                    clonBtn.style.filter = 'none';
-                    clonBtn.style.backgroundImage = 'linear-gradient(rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.55))';
-                    clonBtn.style.backgroundColor = colorOriginalVivo;
-                    clonBtn.style.color = '#555555'; 
-                } else {
-                    // ESTADO ON OSCURO: Color sólido y vivo de la madre al 100%
+                    // ESTADO INACTIVO PASTEL REGULADO (Fondo pastel / Texto Negro)
                     clonBtn.style.opacity = '1';
                     clonBtn.style.filter = 'none';
                     clonBtn.style.backgroundImage = 'none';
-                    clonBtn.style.backgroundColor = colorOriginalVivo;
-                    clonBtn.style.color = '#ffffff'; 
+                    clonBtn.style.backgroundColor = cromaticaRealHijo.pastel;
+                    clonBtn.style.color = '#000000'; // Fuerza letras negras legibles en el drawer
+                } else {
+                    // ESTADO ACTIVO SÓLIDO VIVO (Color sólido / Texto de contraste automático)
+                    clonBtn.style.opacity = '1';
+                    clonBtn.style.filter = 'none';
+                    clonBtn.style.backgroundImage = 'none';
+                    clonBtn.style.backgroundColor = cromaticaRealHijo.solido;
+                    clonBtn.style.color = cromaticaRealHijo.txtSolido; 
                 }
             }
 
