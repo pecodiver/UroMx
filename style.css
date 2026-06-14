@@ -1,0 +1,138 @@
+:root { --verde-clinico: #2ecc71; --ambar-clinico: #f1c40f; --rojo-clinico: #e74c3c; --texto-primprimary: #2c3e50; --borde-panel: #cbd5e1; --bg-tarjeta: #ffffff;  /* Paleta Pastel Médica por Categoría para Fondos */ --bg-cat-tiempos: #f0fdf4; --bg-cat-volumenes: #eff6ff; --bg-cat-flujos: #fff7ed; --bg-cat-fluidos: #fdf2f8; }
+#lista-micciones .sublista-acordeon-hijas { display: none !important; }
+body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f8fafc; color: var(--texto-primario); overflow: hidden; }
+.app-container { display: grid; grid-template-columns: max-content 1fr; height: 100dvh; margin: 0; padding: 0 !important; width: 100vw; max-width: 100vw; box-sizing: border-box; }
+/* Sidebar Estilo Tablero Clínico */ .sidebar { background-color: #ffffff; border-right: 1px solid var(--borde-panel); display: flex; flex-direction: column; overflow: auto; width: auto; min-width: 110px; }
+.sidebar h2 { font-size: 1rem; padding: 2px; padding-bottom: 2px; margin: 0; background-color: #f1f5f9; border-bottom: 1px solid var(--borde-panel); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+.panel-acciones { padding: 6px 10px; background-color: #f8fafc; border-bottom: 1px solid var(--borde-panel); }
+.btn-clinico { width: 100%; background-color: #34495e; color: #ffffff; border: none; padding: 6px 10px; font-size: 0.80rem; font-weight: bold; border-radius: 4px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px; transition: background-color 0.15s ease; }
+.btn-clinico:hover { background-color: #2c3e50; }
+.lista-micciones { flex: 1; overflow-y: auto; padding: 6px; }
+.item-miccion { display: flex; align-items: center; padding: 1px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 1px; cursor: pointer; transition: all 0.2s ease; user-select: none; touch-action: manipulation; }
+.chk-miccion { display: none !important; }
+.item-miccion:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+.item-miccion.seleccionada { border-left: 5px solid #3498db; background-color: #faf5ff; }
+.color-indicator { width: 12px; height: 12px; border-radius: 4px; margin-left: auto; border: 1px solid rgba(0,0,0,0.15); }
+/* Panel Principal de Diagnóstico */ .main-content { display: grid; grid-template-rows: 60% 3px calc(40% - 5px);  overflow: hidden; position: relative; height: 100%; box-sizing: border-box; }
+.grid-splitter { background-color: #cbd5e1; cursor: row-resize; transition: background-color 0.15s; z-index: 100; position: relative; }
+/* Efecto visual al pasar el cursor o arrastrar la barra */ .grid-splitter:hover, .grid-splitter.active { background-color: #34495e; }
+/* área de gráficación */ .chart-section { padding: 15px; padding-right: 15px !important;  background-color: #ffffff; border-bottom: 1px solid var(--borde-panel); position: relative; box-sizing: border-box; }
+.chart-wrapper { width: 100%; height: 100%; }
+#btn-salir-modo { position: absolute; top: 15px; right: 25px; z-index: 100; background-color: #2c3e50; color: #ffffff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+/* Área de Métricas Inferior con Pestañas */ .calculos-section { display: flex; flex-direction: column; background-color: #f8fafc; overflow-y: auto !important; height: 100%; position: relative; -webkit-overflow-scrolling: touch; }
+.calculos-header { display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; border-bottom: 1px solid var(--borde-panel); padding: 0 10px; height: 40px; flex-shrink: 0; }
+h3 { font-size: 20px; font-weight: 600; margin: 0; margin-top: 5px; }
+.calculos-header h3 { margin: 0; font-size: 0.8rem; color: #475569; text-transform: uppercase; }
+/* Sistema de Pestañas (Tabs) */ .tabs-navigation { display: flex; gap: 4px; height: 100%; align-items: flex-end; }
+.tab-link { background: #f1f5f9; border: 1px solid var(--borde-panel); border-bottom: none; padding: 5px 10px; font-size: 0.78rem; font-weight: 600; color: #64748b; border-top-left-radius: 4px; border-top-right-radius: 4px; cursor: pointer; transition: all 0.15s ease; height: 28px; box-sizing: border-box; }
+.tab-link:hover { background: #e2e8f0; color: #334155; }
+.tab-link.active { background-color: #34495e !important; color: #ffffff !important; border-color: #2c3e50; height: 32px; font-weight: 700; position: relative; z-index: 2; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+.tab-link.active span { color: #e2e8f0 !important; }
+.contenedor-grid-fijo { flex: 1; overflow-y: auto; padding: 10px 15px 45px 15px !important;  box-sizing: border-box; }
+.grid-calculos { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(145px, 100%), 1fr)) !important; gap: 4px !important; }
+@media (max-width: 480px){ .grid-calculos { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; gap: 4px !important; }
+.card-calculo { min-height: 80px !important; } }
+/* Tarjeta Clínica Compacta */ .card-calculo { border: 1px solid #cbd5e1; border-radius: 5px; padding: 2px 2%; box-shadow: 0 1px 2px rgba(0,0,0,0.03); cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 70px; position: relative; box-sizing: border-box; overflow: hidden; }
+.card-calculo:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08); }
+.card-calculo.cat-bg-tiempos { background-color: var(--bg-cat-tiempos); }
+.card-calculo.cat-bg-volumenes { background-color: var(--bg-cat-volumenes); }
+.card-calculo.cat-bg-flujos { background-color: var(--bg-cat-flujos); }
+.card-calculo.cat-bg-fluidos { background-color: var(--bg-cat-fluidos); }
+.calc-nomenclatura { font-family: "Times New Roman", Times, Georgia, serif; font-size: 1.25rem; font-weight: bold; color: #0f172a; line-height: 1.0; max-width: 85%; white-space: nowrap;}
+.calc-nomenclatura sub { font-size: 0.7rem; bottom: -0.1em; }
+.calc-nomenclatura super { font-size: 0.7rem; top: -0.2em; }
+.calc-nombre { font-size: 0.7rem; color: #475569; margin: 2px 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-weight: 500; }
+.calc-valor { font-size: 1.1rem; font-weight: 800; text-align: right; line-height: 1.0; margin-top: auto; }
+.calc-unidad { font-size: 0.7rem; font-weight: 500; color: #64748b; font-family: -apple-system, sans-serif; }
+.btn-info-tarjeta { position: absolute; top: 3px; right: 3px; width: 15px; height: 15px; color: #ffffff; border: none; border-radius: 50%; font-size: 0.85rem; font-weight: bold; cursor: help; display: flex; align-items: center; justify-content: center; transition: background-color 0.15s ease; z-index: 5; padding: 0; line-height: 1; }
+.btn-info-tarjeta:hover { background-color: #1e293b; transform: scale(1.05); }
+.badge-verde { border-top: 3px solid var(--verde-clinico); }
+.badge-verde .calc-valor { color: #218c53; }
+.badge-ambar { border-top: 3px solid var(--ambar-clinico); }
+.badge-ambar .calc-valor { color: #b45309; }
+.badge-rojo { border-top: 3px solid var(--rojo-clinico); }
+.badge-rojo .calc-valor { color: var(--rojo-clinico); }
+.panel-inferior-glosario { position: absolute; bottom: 8px; left: 15px; z-index: 10; }
+.btn-glosario-trigger { background-color: #cbd5e1; color: #334155; border: 1px solid #94a3b8; border-radius: 4px; padding: 3px 8px; font-size: 0.72rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.15s ease; }
+.btn-glosario-trigger:hover { background-color: #94a3b8; color: #ffffff; }
+.panel-paciente-educativo { position: absolute; top: 0; left: 0; width: 100%;  height: 100%;  background-color: #f8fafc; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 500; display: none;  box-sizing: border-box; border-bottom: 2px solid var(--borde-panel); }
+.modal-paciente-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; background-color: #f1f5f9; border-bottom: 1px solid var(--borde-panel); height: 45px; box-sizing: border-box; }
+.btn-cerrar-modal-pac { background: none; border: none; font-size: 1.5rem; color: #64748b; cursor: pointer; line-height: 1; padding: 0; }
+.btn-cerrar-modal-pac:hover { color: #1e293b; }
+.perfil-toggle-container { display: flex; align-items: center; gap: 8px; user-select: none; }
+.perfil-lbl { font-size: 0.78rem; font-weight: 600; color: #94a3b8; transition: color 0.2s; }
+.perfil-lbl-active { color: #1e293b; font-weight: 700; }
+.perfil-switch-bg { width: 36px; height: 20px; background-color: #cbd5e1; border-radius: 10px; position: relative; cursor: pointer; transition: background-color 0.2s; }
+.perfil-switch-handle { width: 14px; height: 14px; background-color: #ffffff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: transform 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.perfil-switch-handle.handle-right { transform: translateX(16px); }
+.modal-paciente-body { padding: 15px; height: calc(100% - 45px); overflow-y: auto;  box-sizing: border-box; }
+.alerta-perfil-box { padding: 6px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-bottom: 12px; background-color: #fef08a; color: #854d0e; border: 1px solid #fef08a; text-align: center; text-transform: uppercase; }
+.desc-texto {font-size: 0.88rem;line-height: 1.5;color: #334155;margin-bottom: 15px;text-align: justify;}
+.rango-referencia-box {background-color: #f8fafc;border-left: 4px solid #16a34a;padding: 10px;border-radius: 4px;font-size: 0.82rem;line-height: 1.4;color: #475569;}
+.modal-overlay-leyenda {position: fixed;top: 0;left: 0;width: 100vw;height: 100vh;background-color: rgba(15, 23, 42, 0.6);z-index: 1000;display: none; align-items: center;justify-content: center;}
+.modal-content-leyenda { background-color: #ffffff; width: 100vw; height: 10vh; border-radius: 0px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); overflow: auto; animation: scaleUp 0.15s ease-out;}
+@keyframes scaleUp { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; }}
+.leyenda-header { background-color: #f1f5f9; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--borde-panel);}
+.leyenda-item { margin: 0; font-size: 0.75rem; color: #1e293b;}
+.modal-leyenda-header h4, .leyenda-header h4 { margin: 0; font-size: 0.95rem; color: #1e293b; text-transform: uppercase;}
+.leyenda-body { padding: 15px;}
+.leyenda-row { display: flex; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;}
+.leyenda-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none;}
+.muestra-color { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #cbd5e1; flex-shrink: 0;}
+.leyenda-info h5 { margin: 0 0 3px 0; font-size: 0.85rem; color: #1e293b;}
+.leyenda-info p { margin: 0; font-size: 0.78rem; color: #64748b; line-height: 1.3;}
+/* BLINDAJE MÓVIL PUNTUAL: Evita la selección accidental de texto al arrastrar el zoom con el dedo */ .chart-section, .chart-wrapper, canvas, .item-miccion { -webkit-user-select: none;  -moz-user-select: none;  -ms-user-select: none;  user-select: none;   -webkit-touch-callout: none;  }
+/* ========================================================================= BLOQUE FIJO E INAMOVIBLE: GEOMETRÍA GENERAL DEL DRAWER MAESTRO (PC Y CH) ========================================================================= */ .drawer-filtros { position: fixed !important;  top: 10px; left: -500px; width: 240px !important; height: auto !important; max-height: calc(100dvh - 20px) !important; background-color: #e2e8f0 !important; border: 1px solid var(--borde-panel) !important; border-radius: 8px !important; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.4) !important; z-index: 9999999 !important; display: flex !important; flex-direction: column !important; transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important; box-sizing: border-box !important; overflow: hidden !important; }
+#native-date-desde,  #native-date-hasta { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+/* Área del Encabezado: Manija de arrastre visual */ .drawer-header { background-color: #34495e; padding: 10px; font-size: 0.72rem; font-weight: 800; color: #ffffff; text-align: center; position: relative; cursor: move; user-select: none; -webkit-user-select: none; }
+.btn-close-drawer { position: absolute; right: 8px; top: 6px; background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #cbd5e1; padding: 0; line-height: 1; z-index: 15; }
+.drawer-body { padding: 10px !important; display: flex !important; flex-direction: column !important; gap: 10px !important; box-sizing: border-box !important; overflow-y: auto; }
+.titulo-seccion-dr { font-size: 0.65rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: -4px; }
+/* ========================================================================= BLOQUE FIJO E INAMOVIBLE: PALETAS DE COLORES CLÍNICAS (INACTIVO / ACTIVO) ========================================================================= */  /* SECCIÓN MODOS (MICCIÓN / DILATACIÓN) */ .selector-modo-container { display: flex; gap: 5px; }
+.btn-modo-toggle { flex: 1; background-color: #CF9191 !important; color: #ffffff !important; border: none; padding: 8px 2px; font-size: 0.75rem; font-weight: 700; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
+.btn-modo-toggle.active { background-color: #996B6B !important; }
+/* SECCIÓN CALENDARIOS MANUALES */ .bloque-rangos-manuales { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.rango-row-header { display: flex; font-size: 0.72rem; font-weight: 700; color: #334155; }
+.col-header-dr { flex: 1; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.btn-icon-calendario-label { background: none; border: none; font-size: 0.9rem; cursor: pointer; padding: 0; line-height: 1; }
+.rango-inputs-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; align-items: center; font-size: 0.68rem; font-weight: 700; }
+.input-txt-clinico { width: 100%; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px; font-size: 0.72rem; font-family: monospace; text-align: center; box-sizing: border-box; }
+/* SECCIÓN DÍAS (RANGOS RÁPIDOS) */ .grid-botones-rapidos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.btn-tiempo-rapido { background-color: #9FC79F !important; color: #ffffff !important; border: none; padding: 8px 2px; font-size: 0.72rem; font-weight: 700; border-radius: 4px; cursor: pointer; }
+.btn-tiempo-rapido.active { background-color: #647D64 !important;  }
+/* SECCIÓN HORAS (BLOQUES Bbis) */ .grid-bloques-horas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.btn-horas-bloque { background-color: #C9C900 !important;  color: #2c3e50 !important; border: none; padding: 8px 2px; font-size: 0.7rem; font-weight: 700; border-radius: 4px; cursor: pointer; line-height: 1.1; }
+.btn-horas-bloque.active { background-color: #858500 !important; color: #ffffff !important; }
+/* SECCIÓN BOTONERA ACCIONES DE CONTROL */ .fila-acciones-drawer { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.btn-accion-dr { background-color: #94a3b8; color: #ffffff; border: none; padding: 8px 2px; font-size: 0.7rem; font-weight: 700; border-radius: 4px; cursor: pointer; text-transform: uppercase; }
+.btn-master-aplicar { grid-column: span 2; background-color: #1e293b; font-size: 0.75rem; padding: 10px 2px; }
+/* ========================================================================= BLOQUE MAESTRO CONSOLIDADO: OPTIMIZACIÓN ERGONÓMICA COMPACTA PARA CASO CH ========================================================================= */ @media (max-height: 480px) and (orientation: landscape) { .drawer-filtros { top: 35px !important; max-height: calc(100dvh - 50px) !important; width: 360px !important;  }
+.drawer-body { display: grid !important; grid-template-columns: 1fr 1.8fr !important; grid-template-rows: auto auto auto auto !important; gap: 4px !important; padding: 6px !important; }
+/* Modos apilados a la izquierda de forma simétrica */ .selector-modo-container { flex-direction: column !important; gap: 4px !important; grid-column: 1 !important; grid-row: 1 !important; justify-content: center !important; }
+.btn-modo-toggle { width: 100% !important; padding: 5px 0 !important; font-size: 0.80rem !important; }
+/* ELIMINACIÓN DEL ESTIRÓN: Caja blanca ultra-compactada ajustada a sus inputs */ .bloque-rangos-manuales { grid-column: 2 !important; grid-row: 1 !important; padding: 3px !important; gap: 3px !important; background-color: #ffffff !important; height: fit-content !important; }
+.rango-row-header { font-size: 1.00rem !important; margin-bottom: 2px !important; }
+.rango-inputs-grid { gap: 3px !important; font-size: 0.80rem !important; }
+.input-txt-clinico { padding: 2px !important; font-size: 0.80rem !important; height: 22px !important; }
+/* Ocultamiento rígido de leyendas para ganar espacio vertical */ .titulo-seccion-dr { display: none !important;  }
+/* Tira horizontal de botones verdes de días */ .grid-botones-rapidos { grid-column: 1 / span 2 !important; grid-row: 2 !important; grid-template-columns: repeat(6, 1fr) !important; margin-top: 10px !important;  gap: 3px !important; }
+/* Tira horizontal de bloques amarillos de horas */ .grid-bloques-horas { grid-column: 1 / span 2 !important; grid-row: 3 !important; grid-template-columns: repeat(6, 1fr) !important; margin-top: 10px !important; gap: 3px !important; }
+.btn-tiempo-rapido, .btn-horas-bloque { padding: 5px 0 !important; font-size: 0.80rem !important; }
+/* Fila de acciones inferiores (Limpiar e Invertir) */ .fila-acciones-drawer { grid-column: 1 / span 2 !important; grid-row: 8 !important; display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 4px !important; margin-bottom: 2px !important; margin-top: 10px !important; }
+.btn-accion-dr { padding: 5px 0 !important; font-size: 0.80rem !important; }
+/* CENTRADO EXACTO AL 70% SOLICITADO */ .btn-master-aplicar { grid-column: 1 / span 2 !important; width: 70% !important; justify-self: center !important; padding: 6px 0 !important; font-size: 1.0rem !important; margin-top: 2px !important; } }
+/* ========================================================================= RESTRICCIÓN ERGONÓMICA ESTRICTA PARA MODO VERTICAL EN CELULARES ========================================================================= */ @media (max-width: 480px) { .app-container { grid-template-columns: 1fr !important; height: 100dvh !important; overflow: hidden; }
+.sidebar { height: 85px !important;  min-height: 85px !important; border-right: none !important; border-bottom: 1px solid var(--borde-panel);  display: flex !important; flex-direction: row !important;  align-items: center !important; justify-content: space-between !important; padding: 0 6px !important; box-sizing: border-box; }
+.sidebar h2 { display: none !important;  }
+.panel-acciones { display: flex !important; padding: 0 !important; margin-left: auto !important; flex-shrink: 0 !important; width: 42px !important; height: 64px !important; }
+/* CONFIGURACIÓN MAESTRA DE 2 FILAS HORIZONTALES CON SCROLL */ .lista-micciones { display: flex !important; flex-direction: column !important; flex-wrap: wrap !important; align-content: flex-start !important; height: 100% !important;  overflow-x: auto !important; overflow-y: hidden !important; padding: 4px !important; gap: 4px 6px !important;  box-sizing: border-box; }
+.item-miccion { margin-bottom: 0 !important; white-space: nowrap !important;  padding: 4px 8px !important; height: 32px !important;  box-sizing: border-box; }
+/* Liberación de la zona de trabajo central restando el nuevo alto de la sidebar */ .main-content { height: calc(100dvh - 85px) !important; display: flex !important; flex-direction: column !important; grid-template-rows: none !important;  }
+.chart-section { height: 230px !important; min-height: 230px !important; flex-shrink: 0 !important; padding-right: 15px !important;  }
+/* DESBLOQUEO DE ZOOM EN CELULAR: Apaga los gestos nativos del teléfono sobre el gráfico */ canvas#uroChart { touch-action: pan-x !important;  }
+.calculos-section { flex: 1 !important; overflow-y: auto !important; }
+.grid-calculos { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: 4px !important; }
+}
+/* AJUSTE TÁCTIL: INVISIBILIDAD ACTIVA PARA EL SELECTOR MÓVIL */ .btn-icon-calendario-label { cursor: pointer; font-size: 0.95rem; display: inline-block; line-height: 1; user-select: none; -webkit-user-select: none; }
+.input-nativo-control-movil { position: absolute !important; opacity: 0 !important; width: 20px !important; height: 20px !important; z-index: 1 !important; pointer-events: none !important; }
+#flotante-lista-contenido .item-miccion, #flotante-lista-contenido .hijo-hora, #flotante-lista-contenido .hijo-estudio { margin: 0 !important; padding: 3px 2px !important; border-radius: 0 !important; font-size: 0.65rem !important; box-sizing: border-box !important;  /* === FLEXBOX COERCITIVO: FORZAR CENTRADO GEOMÉTRICO DEL TEXTO === */ display: flex !important; justify-content: center !important; align-items: center !important;  text-align: center !important; }
