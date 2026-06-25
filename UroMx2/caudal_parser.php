@@ -12,99 +12,72 @@ $lineas = file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 $respuesta = [];
 
 $fecha_anterior_rastreo = "";
-$id_dia_contador = -1; 
+$id_dia_contador = 1; 
 $conteo_micciones_del_dia = 0;
-$id_ContadorTotal =0;
+$id_ContadorTotal = 1; 
 
-// Rastreadores para formular idDilatacion
-$ciclo_dilatacion_actual = -1; 
+$ciclo_dilatacion_actual = 1; 
 $conteo_micciones_dilatacion = 0;
-$sonda_fr_anterior = 0;
+$calibre_actual_ciclo = 0; // Variable que recordará la "familia" de la sonda
 
-// MAPEO CRONOLÓGICO SEGURO DE CICLOS ANTES DE INVERTIR LA LISTA
-$mapa_ciclos_dilatacion = [];
-$mapa_calibres_sonda = [];
-$num_miccion = 0;
-$contador_ciclos = 0;
-$calibre_actual = 0;
-$es_apertura_ciclo = [];
+$lista_registros_temporales = []; 
 
-foreach ($lineas as $idx => $linea_original) {
-    $datos_linea = explode(',', trim($linea_original));
-    if (count($datos_linea) < 4) continue;
-    
-    $fecha_check = trim($datos_linea[0]);
-    $apertura_detectada = 0;
-    
-    if (substr($fecha_check, 0, 1) === '@') {
-        $partes_arroba = explode('@', $fecha_check);
-        if (count($partes_arroba) >= 3) {
-            $contador_ciclos++;
-            $calibre_actual = intval($partes_arroba[1]);
-            $apertura_detectada = 1;
-        }
-    }
-    
-    $mapa_ciclos_dilatacion[$idx] = $contador_ciclos;
-    $mapa_calibres_sonda[$idx] = $calibre_actual;
-    $es_apertura_ciclo[$idx] = $apertura_detectada;
-}
-
-$lineas_reversas = array_reverse($lineas, true);
-
-foreach ($lineas_reversas as $idx_linea => $linea) {
+foreach ($lineas as $idx_linea => $linea) {
     $datos = explode(',', trim($linea));
     if (count($datos) < 4) continue;
 
-    $fecha_completa = trim($datos[0]); // "dd-mm-yyyy hh:mm:ss" o "@FR@dd-mm-yyyy hh:mm:ss"
-    
-    // LIMPIEZA ADAPTATIVA DE LA FECHA PARA TUS CÁLCULOS NATIVOS SUCESIVOS
-    $sonda_fr_detectado = 0;
+    $fecha_completa = trim($datos[0]); 
     $es_miccion_apertura = 0;
     
     if (substr($fecha_completa, 0, 1) === '@') {
         $partes_arroba = explode('@', $fecha_completa);
         if (count($partes_arroba) >= 3) {
-            $fecha_completa = trim($partes_arroba[2]); // Aísla la fecha limpia "dd-mm-yyyy hh:mm:ss"
+            $fecha_completa = trim($partes_arroba[2]); // Aísla la fecha limpia
+            
+            // Guarda el calibre para este registro y los siguientes (Herencia de Familia)
+            $calibre_actual_ciclo = intval($partes_arroba[1]); 
+            $es_miccion_apertura = 1;
+            
+            // Incrementa el ciclo si ya no es el primer registro del archivo
+            if ($id_ContadorTotal > 1) {
+                $ciclo_dilatacion_actual++;
+            }
+            $conteo_micciones_dilatacion = 0; // Primer registro de la nueva familia (.000)
+        }
+    } else {
+        // Si no tiene '@', es una micción normal pero pertenece a la familia actual
+        if ($id_ContadorTotal > 1) {
+            $conteo_micciones_dilatacion++;
         }
     }
     
-    $ciclo_asignado = isset($mapa_ciclos_dilatacion[$idx_linea]) ? $mapa_ciclos_dilatacion[$idx_linea] : 0;
-    $sonda_fr_detectado = isset($mapa_calibres_sonda[$idx_linea]) ? $mapa_calibres_sonda[$idx_linea] : 0;
-    $es_miccion_apertura = isset($es_apertura_ciclo[$idx_linea]) ? $es_apertura_ciclo[$idx_linea] : 0;
-
+    // Asignación final del calibre de la familia para el registro actual
+    $sonda_fr_detectado = $calibre_actual_ciclo; 
+    
     // =========================================================================
     // MATRIZ DE PRECISIÓN CRONOLÓGICA SÍNCRO: PURIFICACIÓN DE FECHA Y FLOATS
     // =========================================================================
-    // A) Rebanamos los segundos de la hora para fijar la cadena a 16 caracteres ("dd/mm/yyyy hh:mm")
-    // Reemplazamos guiones por barras de forma nativa para estandarizar el indexado
     $fecha_estandarizada = str_replace('-', '/', $fecha_completa);
     $fecha_partes_espacio = explode(" ", $fecha_estandarizada);
-    $fecha_pura_10 = $fecha_partes_espacio[0]; // Extrae "dd/mm/yyyy"
-    $hora_corta_5 = isset($fecha_partes_espacio[1]) ? substr($fecha_partes_espacio[1], 0, 5) : "00:00"; // Extrae "hh:mm"
+    $fecha_pura_10 = $fecha_partes_espacio[0]; 
+    $hora_corta_5 = isset($fecha_partes_espacio[1]) ? substr($fecha_partes_espacio[1], 0, 5) : "00:00"; 
     $fecha_mix_final = $fecha_pura_10 . " " . $hora_corta_5;
 
-    // B) Lógica Float idDia (Día.Micción consecutivo de Comadres)
+    // B) Lógica Float idDia
     if ($fecha_pura_10 !== $fecha_anterior_rastreo) {
-        $id_dia_contador++; 
-        $conteo_micciones_del_dia = 0; // SOLUCIÓN: Arranca en .00 de forma nativa
+        if ($id_ContadorTotal > 1) {
+            $id_dia_contador++;
+        }
+        $conteo_micciones_del_dia = 0; 
         $fecha_anterior_rastreo = $fecha_pura_10;
     } else {
         $conteo_micciones_del_dia++;
     }
+    
+    $id_mix_final = $id_ContadorTotal;
     $id_dia_float = floatval($id_dia_contador + ($conteo_micciones_del_dia / 100));
-
-    // C) Lógica Float idDilatacion (Ciclo.Micción consecutivo de Sondas)
-    if ($sonda_fr_detectado !== $sonda_fr_anterior) {
-        $ciclo_dilatacion_actual++;
-        $conteo_micciones_dilatacion = 0; // .000 es la micción de apertura del ciclo de sonda
-        $sonda_fr_anterior = $sonda_fr_detectado;
-    } else {
-        $conteo_micciones_dilatacion++;
-    }
     $id_dilatacion_float = floatval($ciclo_dilatacion_actual + ($conteo_micciones_dilatacion / 1000));
     
-    // Identificador único requerido para la barra lateral: "dd-mm hh:mm"
     $id_miccion = (strlen($fecha_completa) >= 16) ? substr($fecha_completa, 0, 5) . ' ' . substr($fecha_completa, 11, 5) : $fecha_completa;
     
     $unidad_tiempo_ms = floatval(trim($datos[1]));
@@ -378,7 +351,7 @@ foreach ($lineas_reversas as $idx_linea => $linea) {
 	<=2		Aceleración Moderada/Compensada			Estrechamiento elástico o HPB inicial. El fluido se acelera ligeramente.
     >2		Aceleración Crítica (Efecto Boquilla)	Caso de tu paciente. Firma matemática de una restricción geométrica fija (Estenosis severa).
 	*/
-    $DPventuri = 510 * (pow($Vexit,2) - pow(4 * $Qmax * pow(10,-6) / (pi() * pow(0.006,2)),2))/98.06;
+    $DPventuri = 510 * (pow($Vexit,2) - pow(4 * $Qmax * pow(10,-6) / (pi() * pow(0.006,2)),2))/0.986;
 
     /* EHV: Eficiencia hidráulica del vaciado urinario %
      * Mide de forma porcentual (%) cuánta de la potencia mecánica y elástica total generada por el músculo detrusor de la vejiga logra transformarse en energía útil de salida en el chorro urinario [URA].
@@ -415,7 +388,7 @@ foreach ($lineas_reversas as $idx_linea => $linea) {
     $sem_BWI = ($BWI < 15.0) ? 'rojo' : (($BWI <= 35.0) ? 'ambar' : 'verde');
     $sem_CVI = ($CVI > 35.0) ? 'rojo' : (($CVI > 15.0) ? 'ambar' : 'verde');
     $sem_Ptot = ($Ptot < 20.0) ? 'rojo' : (($Ptot <= 50.0) ? 'ambar' : 'verde');
-    $sem_IRD = ($IRD < 1.20) ? 'rojo' : (($IRD <= 1.50) ? 'ambar' : 'verde');
+    $sem_IRD = ($IRD < 40) ? 'rojo' : (($IRD <= 95) ? 'ambar' : 'verde');
     $sem_DPventuri = ($DPventuri > 1500) ? 'rojo' : (($DPventuri > 600) ? 'ambar' : 'verde');
     $sem_remax = ($remax > 2300) ? 'rojo' : (($remax > 1800) ? 'ambar' : 'verde');
     $sem_EHV = ($EHV < 75.0) ? 'rojo' : (($EHV < 90.0) ? 'ambar' : 'verde');
@@ -424,7 +397,60 @@ foreach ($lineas_reversas as $idx_linea => $linea) {
     $sem_linpur = ($linPURR > 4) ? 'rojo' : (($linPURR >= 2) ? 'ambar' : 'verde');
     $sem_siroky = ($siroky < 0.75) ? 'rojo' : (($siroky <= 1.0) ? 'ambar' : 'verde');
 
-    // --- 7. INYECCIÓN DEL ENTORNO TEXTUAL INTERACTIVO (MÉTRICAS 1 A 14) ---
+    $flujo_mls_purificado = [];
+    if (is_array($incremento_nuevo)) {
+        foreach ($incremento_nuevo as $valorLectura) {
+            $flujo_mls_purificado[] = round(floatval($valorLectura), 3);
+        }
+    }
+
+    $calculos_datos_dinamicos = [
+        'Vvoid'        => ['valor' => number_format($Vvoid, 3),        'semaforo' => $sem_Vvoid],
+        'tvoid'        => ['valor' => number_format($tvoid, 3),        'semaforo' => $sem_tvoid],
+        'Vflow'        => ['valor' => number_format($Vflow, 3),        'semaforo' => $sem_Vvoid],
+        'tflow'        => ['valor' => number_format($tflow, 3),        'semaforo' => $sem_tflow],
+        'tQMax'        => ['valor' => number_format($tQmax, 3),        'semaforo' => $sem_tQmax],
+        'Qmax'         => ['valor' => number_format($Qmax, 3),         'semaforo' => $sem_Qmax],
+        'Qave'         => ['valor' => number_format($Qave, 3),         'semaforo' => $sem_Qave],
+        't10'          => ['valor' => number_format($t10, 3),          'semaforo' => $sem_t10],
+        't95'          => ['valor' => number_format($t95, 3),          'semaforo' => $sem_t95],
+        'Q2'           => ['valor' => number_format($q2, 3),           'semaforo' => $sem_q2],
+        'Vdrop'        => ['valor' => number_format($Vdrop, 3),        'semaforo' => $sem_Vgoteo],
+        'Qdrop'         => ['valor' => number_format($Qdrop, 3),        'semaforo' => $sem_Qgoteo],
+        'SlewRate'     => ['valor' => number_format($SRmax, 3),        'semaforo' => $sem_SRmax],
+        'AcelApertura' => ['valor' => number_format($acel_apertura, 3), 'semaforo' => $sem_acel_apertura],
+        'Decel'        => ['valor' => number_format($Tdesa, 3),        'semaforo' => $sem_Tdesa],
+        'Rhodarcy'     => ['valor' => number_format($f_darcy, 3),      'semaforo' => $sem_f_darcy],
+        'Potdis'       => ['valor' => number_format($pot_dis, 3),      'semaforo' => $sem_pot_dis],
+        'Efric'        => ['valor' => number_format($Efric, 3),        'semaforo' => $sem_Efric],
+        'LinPURR'      => ['valor' => number_format($linPURR, 3),      'semaforo' => $sem_linpur],
+        'Vexit'        => ['valor' => number_format($Vexit, 3),        'semaforo' => $sem_Vexit],
+        'BWI'          => ['valor' => number_format($BWI, 3),           'semaforo' => $sem_BWI],
+        'CIV'          => ['valor' => number_format($CVI, 2),           'semaforo' => $sem_CVI],
+        'Ptot'         => ['valor' => number_format($Ptot, 1),           'semaforo' => $sem_Ptot],
+        'IRD'          => ['valor' => number_format($IRD, 2),           'semaforo' => $sem_IRD],
+        'Venturi'      => ['valor' => number_format($DPventuri, 0),    'semaforo' => $sem_DPventuri],
+        'Remax'        => ['valor' => (int)$remax,                     'semaforo' => $sem_remax],
+        'EHV'          => ['valor' => number_format($EHV, 3),          'semaforo' => $sem_EHV],
+        'Siroky'       => ['valor' => number_format($siroky, 3),       'semaforo' => $sem_siroky]
+    ];
+
+    $lista_registros_temporales[] = [
+        'idMix'             => $id_ContadorTotal,
+        'idDia'             => $id_dia_float,
+        'idDilatacion'      => $id_dilatacion_float,
+        'frSonda'           => intval($sonda_fr_detectado),
+        'fecha'             => $fecha_mix_final,
+        'tiempo_seg'        => $dt_seg * 1000,
+        'flujo_mls'         => $flujo_mls_purificado, // Vector limpio libre de colas numéricas infinitas
+        'volTotal'          => $volumen_total_calculado,
+        'calculos'          => $calculos_datos_dinamicos 
+    ];
+
+    $id_ContadorTotal++;
+
+} // <-- AQUÍ CIERRA TU BUCLE FOREACH PRINCIPAL DE LAS MICCIONES (TU LLAVE ORIGINAL)
+
 $glosario_maestro_clinico = [
     'Vvoid' => [
         'orden' => 1, 'nomenclatura' => 'V<sub>void</sub>', 'nombre' => 'Volumen de Micción Total', 'unidad' => 'mL', 'grupo' => 'volumenes',
@@ -571,7 +597,7 @@ $glosario_maestro_clinico = [
         'rangos_normales' => 'Normal: Mayor a 1.5 (Verde). Un valor plano cercano a 1.0 denota fatiga o claudicación muscular.'
     ],
 	'Venturi' => [
-        'nomenclatura' => '&Delta;P<sub>Venturi</sub>', 'nombre' => 'Efecto Venturi Uretral', 'unidad' => 'Pa', 'grupo' => 'fluidos',
+        'nomenclatura' => '&Delta;P<sub>Venturi</sub>', 'nombre' => 'Efecto Venturi Uretral', 'unidad' => 'mPa', 'grupo' => 'fluidos',
         'explicacion' => 'Caída de presión estática dinámica inducida por el efecto Venturi debido a la aceleración cinética del fluido en el estrechamiento del cuello vesical. Cuantifica la conversión de energía de presión en energía cinética funcional.',
         'explicacion_paciente' => 'Mide la caída de presión que sufre la orina debido a la aceleración que experimenta al pasar por zonas estrechas. Es un fenómeno físico que explica cómo el líquido gana velocidad al comprimirse en un tubo.',
         'rangos_normales' => 'Normal: Valores óptimos balanceados con la elasticidad anatómica.'
@@ -596,67 +622,13 @@ $glosario_maestro_clinico = [
     ]
 ];
 
-
-    $calculos_datos_dinamicos = [
-        'Vvoid'        => ['valor' => number_format($Vvoid, 3),        'semaforo' => $sem_Vvoid],
-        'tvoid'        => ['valor' => number_format($tvoid, 3),        'semaforo' => 'verde'],
-        'Vflow'        => ['valor' => number_format($Vflow, 3),        'semaforo' => $sem_Vvoid],
-        'tflow'        => ['valor' => number_format($tflow, 3),        'semaforo' => 'verde'],
-        'tQMax'        => ['valor' => number_format($tQmax, 3),        'semaforo' => 'verde'],
-        'Qmax'         => ['valor' => number_format($Qmax, 3),         'semaforo' => $sem_Qmax],
-        'Qave'         => ['valor' => number_format($Qave, 3),         'semaforo' => $sem_Qmax],
-        't10'          => ['valor' => number_format($t10, 3),          'semaforo' => 'verde'],
-        't95'          => ['valor' => number_format($t95, 3),          'semaforo' => 'verde'],
-        'Q2'           => ['valor' => number_format($q2, 3),           'semaforo' => 'verde'],
-        'Vdrop'        => ['valor' => number_format($Vdrop, 3),        'semaforo' => $sem_Vgoteo],
-        'Qdrop'         => ['valor' => number_format($Qdrop, 3),        'semaforo' => $sem_Qgoteo],
-        'SlewRate'     => ['valor' => number_format($SRmax, 3),        'semaforo' => 'verde'],
-        'AcelApertura' => ['valor' => number_format($acel_apertura, 3), 'semaforo' => 'verde'],
-        'Decel'        => ['valor' => number_format($Tdesa, 3),        'semaforo' => 'verde'],
-        'Rhodarcy'     => ['valor' => number_format($f_darcy, 3),      'semaforo' => 'verde'],
-        'Potdis'       => ['valor' => number_format($pot_dis, 3),      'semaforo' => 'verde'],
-        'Efric'        => ['valor' => number_format($Efric, 3),        'semaforo' => 'verde'],
-        'LinPURR'      => ['valor' => number_format($linPURR, 3),      'semaforo' => $sem_linpur],
-        'Vexit'        => ['valor' => number_format($Vexit, 3),        'semaforo' => 'verde'],
-        'BWI'          => ['valor' => number_format($BWI, 3),           'semaforo' => 'verde'],
-        'CIV'          => ['valor' => number_format($CVI, 2),           'semaforo' => 'verde'],
-        'Ptot'         => ['valor' => number_format($Ptot, 1),           'semaforo' => 'verde'],
-        'IRD'          => ['valor' => number_format($IRD, 2),           'semaforo' => 'verde'],
-        'Venturi'      => ['valor' => number_format($DPventuri, 3),    'semaforo' => 'verde'],
-        'Remax'        => ['valor' => (int)$remax,                     'semaforo' => 'verde'],
-        'EHV'          => ['valor' => number_format($EHV, 3),          'semaforo' => 'verde'],
-        'Siroky'       => ['valor' => number_format($siroky, 3),       'semaforo' => $sem_siroky]
-    ];
-
-    // --- 📍 OPTIMIZACIÓN DE CONTRAL: FUMIGACIÓN DE DECIMALES BASURA EN EL VECTOR [STEM] ---
-    // Barremos el arreglo de incrementos de caudal para redondearlos estrictamente a 3 decimales fijos
-    $flujo_mls_purificado = [];
-    if (is_array($incremento_nuevo)) {
-        foreach ($incremento_nuevo as $valorLectura) {
-            $flujo_mls_purificado[] = round(floatval($valorLectura), 3);
-        }
-    }
-
-    // Armamos el registro de la micción actual libre de sobrepeso de textos repetidos
-    $lista_registros_micciones[] = [
-        'idMix'             => $id_ContadorTotal,
-        'idDia'             => $id_dia_float,
-        'idDilatacion'      => $id_dilatacion_float,
-        'frSonda'           => intval($sonda_fr_detectado),
-        'fecha'             => $fecha_mix_final,
-        'tiempo_seg'        => $dt_seg * 1000,
-        'flujo_mls'         => $flujo_mls_purificado, // Vector limpio libre de colas numéricas infinitas
-        'volTotal'          => $volumen_total_calculado,
-        'calculos'          => $calculos_datos_dinamicos 
-    ];
-    $id_ContadorTotal++;
-
-} // <-- AQUÍ CIERRA TU BUCLE FOREACH PRINCIPAL DE LAS MICCIONES (TU LLAVE ORIGINAL)
-
 // =========================================================================
 // --- PACKAGING FINAL DEL JSON COMPRIMIDO DE ALTA VELOCIDAD ---
 // =========================================================================
 // Encapsulamos el glosario estático único y el vector de micciones purificadas
+
+$lista_registros_micciones = array_reverse($lista_registros_temporales);
+
 $respuesta_unificada_ligera = [
     'glosario_clinico' => $glosario_maestro_clinico, // Viaja una sola vez en la cabecera
     'registros'        => $lista_registros_micciones // Datos dinámicos ligeros a dieta
