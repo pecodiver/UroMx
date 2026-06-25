@@ -16,7 +16,7 @@
        
         <!-- Panel Lateral Izquierdo: Control de Series -->
         <aside class="sidebar">
-            <h2 id="lbl-sidebar-titulo">MICCIÓN</h2>
+            <h2 id="lbl-sidebar-titulo">DILATACIÓN</h2>
 
             <div class="panel-acciones" style="width: 100%; box-sizing: border-box;">
 
