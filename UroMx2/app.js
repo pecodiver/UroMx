@@ -5,7 +5,7 @@
 const UroMxApp = {
     // 1. ESTADO GLOBAL DE CONTROL
     state: {
-        mode: 'MX', // 'MX' = Micción, 'DI' = Dilatación
+        mode: 'DI', // 'MX' = Micción, 'DI' = Dilatación
         domOriginal: [],
         domFiltrado: [],
     	datasetDiagnostico: [],
@@ -102,12 +102,12 @@ const UroMxApp = {
             document.head.appendChild(estiloAnimacion);
         }  
     
-document.getElementById('tu-id-de-boton-util').onclick = (e) => {
-    e.preventDefault();
-    if (UroMxApp.ChartManager && typeof UroMxApp.ChartManager.AnalisisClinico === 'function') {
-        UroMxApp.ChartManager.AnalisisClinico();
-    }
-};    
+		document.getElementById('tu-id-de-boton-util').onclick = (e) => {
+    		e.preventDefault();
+    		if (UroMxApp.ChartManager && typeof UroMxApp.ChartManager.AnalisisClinico === 'function') {
+        		UroMxApp.ChartManager.AnalisisClinico();
+		    }
+		};    
     },
 
 
@@ -720,7 +720,7 @@ UroMxApp.InteractionManager = {
             
             // CORREGIDO: Extraemos solo el ENTERO (ej: 0.1 -> 0) para agrupar por día real
             // Si es Modo DI, se queda con su ID original
-            const idAgrupadorNum = UroMxApp.state.mode === 'MX' ? Math.floor(Number(rawId)) : Number(rawId);
+            const idAgrupadorNum = Math.floor(Number(rawId));
             const idAgrupadorStr = Math.floor(Number(rawId)).toString();
 
             if (!diasRegistrados.has(idAgrupadorStr)) {
@@ -746,7 +746,7 @@ UroMxApp.InteractionManager = {
                 	BotonMadre.style.borderLeft = `5px solid ${UroMxApp.getColor(idAgrupadorNum, true)}`;
                 	BotonMadre.style.borderBottom = `2px solid ${UroMxApp.getColor(idAgrupadorNum, true)}`;
                 } else {
-                    BotonMadre.innerText = `#${item.idDilatacion} ${item.frSonda}Fr`;
+                    BotonMadre.innerText = `#${Math.trunc(item.idDilatacion)}${parseInt(item.frSonda) !== 0 ? ` ${item.frSonda}Fr` : ''}`;
                     BotonMadre.style.borderLeft = `5px solid ${UroMxApp.getColor(rawId, true)}`;
                 }
 
@@ -1125,6 +1125,7 @@ UroMxApp.InteractionManager = {
             	BotonHijo.onmouseenter = () => {
                 	if (UroMxApp.ChartManager && typeof UroMxApp.ChartManager.injectTemporaryHoverCurve === 'function') {
                     	UroMxApp.ChartManager.injectTemporaryHoverCurve('HIJO', idHijoUnico);
+                    	if (UroMxApp.CalculationsManager) UroMxApp.CalculationsManager.processCalculations("NORMAL_HIJO", idHijoUnico);
                 	}
             	};
             	BotonHijo.onmouseleave = () => {
@@ -1198,7 +1199,6 @@ UroMxApp.InteractionManager = {
     },
 
 
-    // UBICACIÓN: Dentro de fireExecutionPipeline en tu Módulo 4 (CORREGIDO)
     // CORREGIDO: Amarra de forma estricta el ID del botón pulsado en el milisegundo real (Módulo 4)
     fireExecutionPipeline: function(contexto, idTrigger) {
         if (this.debounceTimer) clearTimeout(this.debounceTimer);
@@ -3750,7 +3750,7 @@ UroMxApp.ChartManager = {
 
             function apagarEspejoVirtual() {
                 contenedor.classList.remove('uro-fullscreen-virtual-movil');
-                //canvas.style.setProperty('height', '350px', 'important');
+                canvas.style.setProperty('height', '350px', 'important');
                 if (UroMxApp.ChartManager.chartFlujo) UroMxApp.ChartManager.chartFlujo.resize();
             }
         };
@@ -3797,28 +3797,17 @@ UroMxApp.ChartManager = {
         // --- 📍 MONITOR ESCAPE DE TECLADO PC (CANDADO DE RESGUARDO ANTIBUCLE) ---
         document.onfullscreenchange = () => {
             if (!document.fullscreenElement) {
-                contenedor.style.cssText = '';
-                canvas.style.removeProperty('height');                
+                contenedor.style.cssText = 'position: relative; height: 350px !important; width: 100% !important; display: block !important; cursor: zoom-in;';
+                canvas.style.setProperty('height', '350px', 'important');
                 
-                // --- 📍 PARCHE CRONOMÉTRICO: Blindamos el redibujo contra desfases de Grid [1.3] ---
-                setTimeout(() => {
-                    if (this.chartFlujo) {
-                        this.chartFlujo.resize();
-                        if (typeof this.chartFlujo.resetZoom === 'function') {
-                            this.chartFlujo.resetZoom('none');
-                        }
-                        this.chartFlujo.update('none'); // Refresco visual instantáneo y simétrico [1.3]
-                    }
-                }, 40); // 40ms es invisible para el urólogo pero vital para la memoria RAM
-                
+                if (this.chartFlujo) {
+                    this.chartFlujo.resize();
+                    if (typeof this.chartFlujo.resetZoom === 'function') this.chartFlujo.resetZoom();
+                }
                 console.log("UroMx Módulo 5: Candado físico inyectado. Bucle de re-escalado destruido en PC.");
             } else {
-                contenedor.style.cssText = 'background:#ffffff; padding:25px; cursor:zoom-out; width:100vw !important; height:100vh !important; position:fixed; left:0; top:0; z-index:9999999;';
+                contenedor.style.cssText = 'background:#fff; padding:25px; cursor:zoom-out; width:100vw !important; height:100vh !important;';
                 canvas.style.setProperty('height', '85vh', 'important');
-                
-                setTimeout(() => {
-                    if (this.chartFlujo) this.chartFlujo.resize();
-                }, 40);
             }
         };
     }
@@ -3836,7 +3825,7 @@ UroMxApp.loadDefaultState = function() {
         
         if (itemCero) {
             // REGLA DE NACIMIENTO: Enciende en automático únicamente la madre que lo agrupa (0.1 -> 0)
-            const idMadreInicial = this.state.mode === 'MX' ? Math.floor(Number(itemCero.idDia)) : Number(itemCero.idDilatacion);
+            const idMadreInicial = this.state.mode === 'MX' ? Math.floor(Number(itemCero.idDia)) : Math.floor(Number(itemCero.idDilatacion));
             this.state.selectedMothers.add(idMadreInicial);
 
             // CORREGIDO: Inyectamos la identidad de nacimiento exacta en el lastContext para que no nazca en null [STEM]
@@ -3867,10 +3856,7 @@ UroMxApp.loadDefaultState = function() {
 
 UroMxApp.CalculationsManager = {
     processCalculations: function(contexto, id) {
-        const tituloElemento = document.getElementById('titulo-calculos') || 
-                               document.querySelector('.seccion-calculos h3') ||
-                               document.querySelector('.calculos-container h3') ||
-                               document.querySelector('h3');
+        const tituloElemento = document.getElementById('titulo-calculos');
 
         const ctx = UroMxApp.state.lastContext || { contexto: null, id: null, origen: 'ORIGEN_MADRE' };
         let textoFinal = "Promedio de micciones último día registrado.";
@@ -4079,15 +4065,19 @@ UroMxApp.CalculationsManager = {
         }
 
         // --- SECCIÓN B: REGLA DE FOCO EXCLUSIVO EN EL ENCENDIDO (ON) ---
-if (ctx.contexto === 'NORMAL_MADRE' && UroMxApp.state.selectedMothers.has(ctx.id)) {
-    return UroMxApp.state.domFiltrado.filter(item => {
-        const rawM = UroMxApp.state.mode === 'MX' ? item.idDia : item.idDilatacion;
-        return Math.floor(Number(rawM)) === ctx.id;
-    });
-}
-if (ctx.contexto === 'NORMAL_HIJO' && UroMxApp.state.selectedChildren.has(ctx.id)) {
-    return UroMxApp.state.domFiltrado.filter(item => item.idMix === ctx.id);
-}
+		if (ctx.contexto === 'NORMAL_MADRE' && UroMxApp.state.selectedMothers.has(ctx.id)) {
+		    return UroMxApp.state.domFiltrado.filter(item => {
+		        const rawM = UroMxApp.state.mode === 'MX' ? item.idDia : item.idDilatacion;
+		        return Math.floor(Number(rawM)) === ctx.id;
+    		});
+		}
+		if (ctx.contexto === 'NORMAL_HIJO' && UroMxApp.state.selectedChildren.has(ctx.id)) {
+    		if (UroMxApp.state.mode === "MX") {
+    			return UroMxApp.state.domFiltrado.filter(item => item.idMix === ctx.id);
+    		} else {
+				return UroMxApp.state.domFiltrado.filter(item => (Math.floor(Number(item.idDia))) === ctx.id);	
+    		}
+		}
     
         // --- SECCIÓN C: REGLA DE PROMEDIO RESIDUAL AL APAGAR UN BOTÓN (OFF) ---
         // Si el flujo llega aquí, significa que la última acción fue un apagado (OFF).
